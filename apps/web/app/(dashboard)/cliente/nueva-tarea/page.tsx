@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
 import { TASK_CATEGORY_LABELS, TASK_CATEGORY_BADGE_COLORS } from "@isytask/shared";
-import { Clock, Info, FileText, X, Sparkles, Upload, CheckCircle2 } from "lucide-react";
+import { Clock, Info, FileText, X, Sparkles, Upload, CheckCircle2, Paperclip, Trash2, Loader2 } from "lucide-react";
 
 export default function NuevaTareaPage() {
   const router = useRouter();
@@ -19,6 +19,10 @@ export default function NuevaTareaPage() {
   const [category, setCategory] = useState<"URGENTE" | "NORMAL" | "LARGO_PLAZO">("NORMAL");
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<
+    Array<{ url: string; fileName: string; fileSize: number; mimeType: string }>
+  >([]);
+  const [uploading, setUploading] = useState(false);
 
   const { data: services } = trpc.services.list.useQuery();
   const { data: templates } = trpc.templates.list.useQuery({ activeOnly: true });
@@ -33,8 +37,29 @@ export default function NuevaTareaPage() {
     (t) => !selectedServiceId || t.serviceId === selectedServiceId
   );
 
+  const addAttachmentMutation = trpc.tasks.addAttachment.useMutation();
+
   const createMutation = trpc.tasks.create.useMutation({
-    onSuccess: () => {
+    onSuccess: async (task) => {
+      // Attach any pending files to the created task
+      if (pendingFiles.length > 0) {
+        try {
+          await Promise.all(
+            pendingFiles.map((file) =>
+              addAttachmentMutation.mutateAsync({
+                taskId: task.id,
+                fileName: file.fileName,
+                fileSize: file.fileSize,
+                mimeType: file.mimeType,
+                url: file.url,
+                isDeliverable: false,
+              })
+            )
+          );
+        } catch {
+          // Files failed but task was created — still redirect
+        }
+      }
       router.push("/cliente");
     },
   });
@@ -63,6 +88,53 @@ export default function NuevaTareaPage() {
     setDescription("");
     setCategory("NORMAL");
     setFormData({});
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`"${file.name}" excede el límite de 10MB`);
+          continue;
+        }
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/uploads/file", {
+          method: "POST",
+          body: fd,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPendingFiles((prev) => [
+            ...prev,
+            {
+              url: data.url,
+              fileName: data.fileName,
+              fileSize: data.fileSize,
+              mimeType: data.mimeType,
+            },
+          ]);
+        } else {
+          alert(`Error al subir "${file.name}"`);
+        }
+      }
+    } catch {
+      alert("Error al subir archivos");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -399,9 +471,84 @@ export default function NuevaTareaPage() {
                 </div>
               )}
 
+              {/* File Attachments */}
+              <div className="space-y-3 border-t pt-4">
+                <label className="text-sm font-medium flex items-center gap-1.5">
+                  <Paperclip className="h-4 w-4" />
+                  Archivos adjuntos
+                  <span className="text-muted-foreground font-normal">(opcional)</span>
+                </label>
+
+                {/* Uploaded files list */}
+                {pendingFiles.length > 0 && (
+                  <div className="space-y-2">
+                    {pendingFiles.map((file, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-3 p-2.5 rounded-lg border bg-muted/30"
+                      >
+                        <Paperclip className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{file.fileName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatFileSize(file.fileSize)}
+                          </p>
+                        </div>
+                        <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                        <button
+                          type="button"
+                          onClick={() => removeFile(idx)}
+                          className="p-1 rounded hover:bg-destructive/10 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Upload area */}
+                <label
+                  className="flex flex-col items-center gap-2 p-5 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.add("border-primary", "bg-primary/5");
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.classList.remove("border-primary", "bg-primary/5");
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove("border-primary", "bg-primary/5");
+                    handleFileUpload(e.dataTransfer.files);
+                  }}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                  ) : (
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                  )}
+                  <span className="text-xs text-muted-foreground text-center">
+                    {uploading
+                      ? "Subiendo archivos..."
+                      : "Arrastra archivos aquí o haz clic para seleccionar"}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/60">
+                    Máximo 10MB por archivo
+                  </span>
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={(e) => handleFileUpload(e.target.files)}
+                  />
+                </label>
+              </div>
+
               {/* Submit */}
               <div className="flex gap-2 pt-4 border-t">
-                <Button type="submit" disabled={createMutation.isLoading}>
+                <Button type="submit" disabled={createMutation.isLoading || uploading}>
                   {createMutation.isLoading ? "Enviando..." : "Enviar Solicitud"}
                 </Button>
                 <Button
