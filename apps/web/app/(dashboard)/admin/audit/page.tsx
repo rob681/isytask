@@ -74,7 +74,7 @@ export default function AuditLogPage() {
   return (
     <>
       <Topbar title="Historial de Actividad" />
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         <p className="text-muted-foreground">
           Registro cronológico de todas las acciones realizadas en el sistema
         </p>

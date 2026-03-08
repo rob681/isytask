@@ -32,7 +32,7 @@ export default function ClienteTareasPage() {
   return (
     <>
       <Topbar title="Mis Tareas" />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* Status filters */}
         <div className="flex flex-wrap gap-1">
           <Button

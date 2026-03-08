@@ -153,7 +153,7 @@ export default function NuevaTareaPage() {
   return (
     <>
       <Topbar title="Nueva Solicitud de Tarea" />
-      <div className="p-6 max-w-2xl mx-auto space-y-6">
+      <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
         {/* Template Selector */}
         {relevantTemplates && relevantTemplates.length > 0 && !appliedTemplateId && (
           <Card className="border-dashed">

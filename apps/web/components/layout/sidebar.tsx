@@ -73,24 +73,14 @@ function getInitials(name: string | null | undefined): string {
     .toUpperCase();
 }
 
-export function Sidebar() {
+function useNavItems() {
   const { data: session } = useSession();
-  const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  const { theme } = useTheme();
-
   const role = (session?.user as any)?.role;
   const permissions = ((session?.user as any)?.permissions ?? []) as string[];
   const avatarUrl = (session?.user as any)?.avatarUrl;
-  const isDark = theme === "dark";
-
-  // Fetch company logo
-  const { data: publicConfig } = trpc.config.getPublic.useQuery(undefined, {
-    staleTime: 60000,
-  });
+  const hasAdminAccess = role === "COLABORADOR" && permissions.length > 0;
 
   let navItems: NavItem[];
-
   if (role === "ADMIN") {
     navItems = adminNav;
   } else if (role === "COLABORADOR") {
@@ -106,18 +96,33 @@ export function Sidebar() {
     navItems = clienteNav;
   }
 
-  const hasAdminAccess = role === "COLABORADOR" && permissions.length > 0;
+  return { session, role, permissions, avatarUrl, hasAdminAccess, navItems };
+}
+
+// ─── Reusable sidebar content (used by both desktop & mobile) ───
+
+interface SidebarContentProps {
+  collapsed: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
+  onNavigate?: () => void; // called when a nav link is clicked (mobile: close drawer)
+}
+
+export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: SidebarContentProps) {
+  const pathname = usePathname();
+  const { theme } = useTheme();
+  const { session, role, avatarUrl, hasAdminAccess, navItems } = useNavItems();
+  const isDark = theme === "dark";
+
+  const { data: publicConfig } = trpc.config.getPublic.useQuery(undefined, {
+    staleTime: 60000,
+  });
+
   const companyLogoUrl = publicConfig?.company_logo_url;
   const companyLogoWhiteUrl = publicConfig?.company_logo_white_url;
 
   return (
-    <aside
-      className={cn(
-        "flex flex-col border-r bg-card h-screen sticky top-0 transition-all duration-300",
-        collapsed ? "w-16" : "w-64"
-      )}
-    >
-      {/* Isytask Brand Logo — always visible */}
+    <>
+      {/* Isytask Brand Logo */}
       {!collapsed ? (
         <div className="flex items-center justify-between p-4 border-b">
           <img
@@ -125,14 +130,16 @@ export function Sidebar() {
             alt="Isytask"
             className="h-8 max-w-[140px] object-contain"
           />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setCollapsed(true)}
-            className="ml-auto flex-shrink-0"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
+          {onCollapsedChange && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onCollapsedChange(true)}
+              className="ml-auto flex-shrink-0"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+          )}
         </div>
       ) : (
         <div className="flex flex-col items-center gap-1 py-3 px-1 border-b">
@@ -141,18 +148,20 @@ export function Sidebar() {
             alt="Isytask"
             className="h-8 w-8 object-contain"
           />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setCollapsed(false)}
-            className="h-7 w-7"
-          >
-            <ChevronLeft className="h-4 w-4 rotate-180" />
-          </Button>
+          {onCollapsedChange && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onCollapsedChange(false)}
+              className="h-7 w-7"
+            >
+              <ChevronLeft className="h-4 w-4 rotate-180" />
+            </Button>
+          )}
         </div>
       )}
 
-      {/* Company logo (admin-uploaded) — secondary branding */}
+      {/* Company logo */}
       {!collapsed && companyLogoUrl && (
         <div className="px-4 py-3 border-b flex items-center justify-center">
           <img
@@ -165,9 +174,12 @@ export function Sidebar() {
 
       {/* User info */}
       {!collapsed && session?.user && (
-        <Link href="/perfil" className="block p-4 border-b hover:bg-accent/50 transition-colors">
+        <Link
+          href="/perfil"
+          className="block p-4 border-b hover:bg-accent/50 transition-colors"
+          onClick={onNavigate}
+        >
           <div className="flex items-center gap-3">
-            {/* Avatar */}
             <div className="relative flex-shrink-0">
               {avatarUrl ? (
                 <img
@@ -208,7 +220,7 @@ export function Sidebar() {
 
       {/* Collapsed avatar */}
       {collapsed && session?.user && (
-        <Link href="/perfil" className="flex justify-center p-3 border-b" title="Mi Perfil">
+        <Link href="/perfil" className="flex justify-center p-3 border-b" title="Mi Perfil" onClick={onNavigate}>
           {avatarUrl ? (
             <img
               src={avatarUrl}
@@ -254,6 +266,7 @@ export function Sidebar() {
               )}
               <Link
                 href={item.href}
+                onClick={onNavigate}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
                   isActive
@@ -285,6 +298,26 @@ export function Sidebar() {
           {!collapsed && <span>Cerrar sesión</span>}
         </button>
       </div>
+    </>
+  );
+}
+
+// ─── Desktop Sidebar (hidden on mobile) ───
+
+export function Sidebar() {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <aside
+      className={cn(
+        "hidden md:flex flex-col border-r bg-card h-screen sticky top-0 transition-all duration-300",
+        collapsed ? "w-16" : "w-64"
+      )}
+    >
+      <SidebarContent
+        collapsed={collapsed}
+        onCollapsedChange={setCollapsed}
+      />
     </aside>
   );
 }

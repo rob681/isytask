@@ -71,7 +71,7 @@ export default function AdminNuevaTareaPage() {
   return (
     <>
       <Topbar title="Crear Tarea" />
-      <div className="p-6 max-w-2xl mx-auto">
+      <div className="p-4 md:p-6 max-w-2xl mx-auto">
         <Card>
           <CardHeader>
             <CardTitle>Nueva Tarea</CardTitle>

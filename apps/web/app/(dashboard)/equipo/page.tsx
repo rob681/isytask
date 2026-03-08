@@ -145,7 +145,7 @@ export default function EquipoPage() {
   return (
     <>
       <Topbar title="Mi Espacio de Trabajo" />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* View toggle */}
         <div className="flex items-center gap-3">
           <div className="flex items-center rounded-lg border bg-muted p-0.5">

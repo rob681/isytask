@@ -152,7 +152,7 @@ export default function CamposPage() {
   return (
     <>
       <Topbar title="Configurar Campos" />
-      <div className="p-6 space-y-6 max-w-3xl mx-auto">
+      <div className="p-4 md:p-6 space-y-6 max-w-3xl mx-auto">
         {/* Back + Service info */}
         <div className="flex items-center gap-4">
           <Link href="/admin/servicios">

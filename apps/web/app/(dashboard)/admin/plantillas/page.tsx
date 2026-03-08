@@ -116,7 +116,7 @@ export default function PlantillasPage() {
   return (
     <>
       <Topbar title="Plantillas de Tareas" />
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between">
           <p className="text-muted-foreground">
             Define plantillas predefinidas para agilizar la creación de tareas por parte de los clientes.

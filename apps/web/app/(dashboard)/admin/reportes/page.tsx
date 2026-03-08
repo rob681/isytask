@@ -234,7 +234,7 @@ export default function ReportesPage() {
   return (
     <>
       <Topbar title="Reporte de Rentabilidad" />
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between">
           <p className="text-muted-foreground">
             Análisis de horas estimadas vs. reales para evaluar la rentabilidad del trabajo

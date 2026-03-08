@@ -96,7 +96,7 @@ export default function ClienteColaPage() {
   return (
     <>
       <Topbar title="Cola de Tareas" />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* Business hours card */}
         {businessHours && (
           <Card className="border-muted">

@@ -110,7 +110,7 @@ export default function PerfilPage() {
   return (
     <>
       <Topbar title="Mi Perfil" />
-      <div className="p-6 max-w-2xl mx-auto space-y-6">
+      <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-6">Foto de Perfil</h3>
 

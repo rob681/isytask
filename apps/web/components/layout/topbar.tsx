@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Bell, ArrowRight, CheckCheck } from "lucide-react";
+import { Bell, ArrowRight, CheckCheck, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
@@ -9,11 +9,13 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { GlobalSearch } from "./global-search";
+import { useSidebar } from "./sidebar-context";
 
 export function Topbar({ title }: { title: string }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const utils = trpc.useUtils();
+  const { openMobile } = useSidebar();
 
   const { data: unreadCount } = trpc.notifications.getUnreadCount.useQuery(
     undefined,
@@ -44,8 +46,13 @@ export function Topbar({ title }: { title: string }) {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-card/80 backdrop-blur-md px-6 py-3">
-      <h2 className="text-lg font-semibold">{title}</h2>
+    <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-card/80 backdrop-blur-md px-4 md:px-6 py-3">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" className="md:hidden flex-shrink-0" onClick={openMobile}>
+          <Menu className="h-5 w-5" />
+        </Button>
+        <h2 className="text-lg font-semibold truncate">{title}</h2>
+      </div>
       <div className="flex items-center gap-3">
         <GlobalSearch />
         <div className="relative" ref={dropdownRef}>
@@ -64,7 +71,7 @@ export function Topbar({ title }: { title: string }) {
           </Button>
 
           {open && (
-            <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border bg-card shadow-lg z-50">
+            <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-80 rounded-lg border bg-card shadow-lg z-50">
               <div className="flex items-center justify-between px-4 py-3 border-b">
                 <p className="text-sm font-semibold">Notificaciones</p>
                 {unreadCount && unreadCount > 0 ? (

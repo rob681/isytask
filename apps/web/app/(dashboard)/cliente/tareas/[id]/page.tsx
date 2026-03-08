@@ -153,7 +153,7 @@ export default function ClienteTaskDetailPage() {
   return (
     <>
       <Topbar title="Detalle de Tarea" />
-      <div className="p-6 space-y-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
         {/* Back button */}
         <div className="flex items-center gap-4">
           <Link href="/cliente">

@@ -101,18 +101,18 @@ export default function ClientesPage() {
   return (
     <>
       <Topbar title="Clientes" />
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 flex-1 max-w-sm">
-            <Search className="h-4 w-4 text-muted-foreground" />
+            <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             <Input
               placeholder="Buscar por nombre o email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Button onClick={() => setShowForm(!showForm)}>
+          <Button onClick={() => setShowForm(!showForm)} className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Cliente
           </Button>
