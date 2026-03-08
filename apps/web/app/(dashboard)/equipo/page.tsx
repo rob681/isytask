@@ -43,6 +43,7 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { SlaIndicator } from "@/components/sla-indicator";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 type ViewMode = "dashboard" | "list" | "kanban";
 
@@ -376,7 +377,7 @@ export default function EquipoPage() {
         {viewMode === "list" && (
           <>
             {isLoading ? (
-              <p className="text-muted-foreground">Cargando tareas...</p>
+              <TableSkeleton rows={5} />
             ) : tasks?.length === 0 ? (
               <p className="text-muted-foreground text-center py-12">
                 No tienes tareas asignadas

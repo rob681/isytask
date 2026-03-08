@@ -10,6 +10,7 @@ import {
   Settings, Save, Building2, ListTodo, Bell, ImageIcon, Upload,
   Trash2, Loader2, Clock, Globe, Plus, X, Mail, Smartphone, Key,
 } from "lucide-react";
+import { CardListSkeleton } from "@/components/ui/skeleton";
 
 // ─── Day labels ────────────────────────────────────────
 const DAY_KEYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
@@ -173,7 +174,7 @@ export default function ConfiguracionPage() {
       <>
         <Topbar title="Configuración" />
         <div className="p-6">
-          <p className="text-muted-foreground">Cargando...</p>
+          <CardListSkeleton cards={3} />
         </div>
       </>
     );

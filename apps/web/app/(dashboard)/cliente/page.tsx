@@ -13,6 +13,7 @@ import {
 } from "@isytask/shared";
 import { Clock, User, MessageCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { CardListSkeleton } from "@/components/ui/skeleton";
 
 const DAY_LABELS: Record<string, string> = {
   monday: "Lun",
@@ -134,7 +135,7 @@ export default function ClienteColaPage() {
         )}
 
         {isLoading ? (
-          <p className="text-muted-foreground">Cargando cola...</p>
+          <CardListSkeleton cards={3} />
         ) : queue?.length === 0 ? (
           <div className="text-center py-12">
             <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-30" />

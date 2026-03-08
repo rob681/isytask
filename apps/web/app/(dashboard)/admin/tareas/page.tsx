@@ -19,6 +19,7 @@ import { es } from "date-fns/locale";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 
 import { SlaIndicator } from "@/components/sla-indicator";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 type StatusFilter = "RECIBIDA" | "EN_PROGRESO" | "DUDA" | "REVISION" | "FINALIZADA" | "CANCELADA" | undefined;
 type CategoryFilter = "URGENTE" | "NORMAL" | "LARGO_PLAZO" | undefined;
@@ -157,7 +158,7 @@ export default function AdminTareasPage() {
 
             {/* Task list */}
             {isLoading ? (
-              <p className="text-muted-foreground">Cargando tareas...</p>
+              <TableSkeleton rows={6} />
             ) : data?.tasks.length === 0 ? (
               <p className="text-muted-foreground text-center py-12">
                 No hay tareas con estos filtros

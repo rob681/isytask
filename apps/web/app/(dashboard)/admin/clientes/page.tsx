@@ -12,6 +12,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createUserSchema } from "@isytask/shared";
 import { z } from "zod";
+import { CardListSkeleton } from "@/components/ui/skeleton";
 
 type CreateForm = z.infer<typeof createUserSchema>;
 
@@ -172,7 +173,7 @@ export default function ClientesPage() {
 
         {/* Clients list */}
         {isLoading ? (
-          <p className="text-muted-foreground">Cargando...</p>
+          <CardListSkeleton cards={6} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {clientsData?.clients.map((client) => {

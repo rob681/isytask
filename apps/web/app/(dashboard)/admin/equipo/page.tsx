@@ -18,6 +18,7 @@ import {
 } from "@isytask/shared";
 import type { Permission } from "@isytask/shared";
 import { z } from "zod";
+import { CardListSkeleton } from "@/components/ui/skeleton";
 
 type CreateForm = z.infer<typeof createUserSchema>;
 
@@ -150,7 +151,7 @@ export default function EquipoPage() {
 
         {/* Team list */}
         {isLoading ? (
-          <p className="text-muted-foreground">Cargando...</p>
+          <CardListSkeleton cards={4} />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {data?.users.map((user) => {

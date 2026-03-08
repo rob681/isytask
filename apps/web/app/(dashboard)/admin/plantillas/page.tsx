@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc/client";
 import { TASK_CATEGORY_LABELS, TASK_CATEGORY_BADGE_COLORS } from "@isytask/shared";
+import { CardListSkeleton } from "@/components/ui/skeleton";
 import {
   FileText,
   Plus,
@@ -239,7 +240,7 @@ export default function PlantillasPage() {
 
         {/* Templates list */}
         {isLoading ? (
-          <p className="text-muted-foreground text-center py-12">Cargando plantillas...</p>
+          <CardListSkeleton cards={4} />
         ) : filtered?.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">

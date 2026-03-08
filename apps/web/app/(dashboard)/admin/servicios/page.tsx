@@ -13,6 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createServiceSchema } from "@isytask/shared";
 import { z } from "zod";
 import Link from "next/link";
+import { CardListSkeleton } from "@/components/ui/skeleton";
 
 const createFormSchema = createServiceSchema.extend({
   slaHours: z.number().int().min(1).optional().nullable(),
@@ -119,7 +120,7 @@ export default function ServiciosPage() {
         )}
 
         {isLoading ? (
-          <p className="text-muted-foreground">Cargando...</p>
+          <CardListSkeleton cards={4} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {services?.map((service) => (

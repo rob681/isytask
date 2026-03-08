@@ -16,6 +16,7 @@ import { Clock, MessageCircle, FileText } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 type StatusFilter = "RECIBIDA" | "EN_PROGRESO" | "DUDA" | "FINALIZADA" | "CANCELADA" | undefined;
 
@@ -66,7 +67,7 @@ export default function ClienteTareasPage() {
         )}
 
         {isLoading ? (
-          <p className="text-muted-foreground">Cargando...</p>
+          <TableSkeleton rows={5} />
         ) : data?.tasks.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-12 w-12 mx-auto mb-2 opacity-30" />

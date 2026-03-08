@@ -40,6 +40,7 @@ import { SlaIndicator } from "@/components/sla-indicator";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { DetailPageSkeleton } from "@/components/ui/skeleton";
 
 const STATUS_ACTIONS: Record<
   string,
@@ -176,7 +177,7 @@ export default function AdminTaskDetailPage() {
       <>
         <Topbar title="Detalle de Tarea" />
         <div className="p-6">
-          <p className="text-muted-foreground">Cargando...</p>
+          <DetailPageSkeleton />
         </div>
       </>
     );

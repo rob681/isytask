@@ -9,6 +9,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:init": "tsx prisma/init-production.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

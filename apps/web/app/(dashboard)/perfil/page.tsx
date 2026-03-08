@@ -15,6 +15,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { changePasswordSchema } from "@isytask/shared";
 import type { z } from "zod";
+import { ProfileSkeleton } from "@/components/ui/skeleton";
 
 export default function PerfilPage() {
   const { data: session, update: updateSession } = useSession();
@@ -127,7 +128,7 @@ export default function PerfilPage() {
       <>
         <Topbar title="Mi Perfil" />
         <div className="p-6">
-          <p className="text-muted-foreground">Cargando...</p>
+          <ProfileSkeleton />
         </div>
       </>
     );

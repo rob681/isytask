@@ -20,6 +20,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { TASK_CATEGORY_LABELS, TASK_CATEGORY_BADGE_COLORS } from "@isytask/shared";
+import { CardListSkeleton } from "@/components/ui/skeleton";
 
 const RECURRENCE_LABELS: Record<string, string> = {
   DAILY: "Diaria",
@@ -42,7 +43,7 @@ export default function TareasRecurrentesPage() {
   const utils = trpc.useUtils();
 
   const { data: recurringTasks, isLoading } = trpc.recurring.list.useQuery();
-  const { data: clients } = trpc.clients.list.useQuery({ page: 1, pageSize: 200 });
+  const { data: clients } = trpc.clients.list.useQuery({ page: 1, pageSize: 100 });
   const { data: services } = trpc.services.list.useQuery();
   const { data: teamMembers } = trpc.users.list.useQuery({
     role: "COLABORADOR",
@@ -354,7 +355,7 @@ export default function TareasRecurrentesPage() {
 
         {/* List */}
         {isLoading ? (
-          <p className="text-muted-foreground">Cargando...</p>
+          <CardListSkeleton cards={3} />
         ) : !recurringTasks || recurringTasks.length === 0 ? (
           <Card className="p-8 text-center">
             <RefreshCw className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />

@@ -41,9 +41,17 @@ function calculateNextRunAt(
  * API route to execute due recurring tasks.
  * Called by an external cron service or manually by admin.
  */
+export async function GET(req: NextRequest) {
+  return POST(req);
+}
+
 export async function POST(req: NextRequest) {
+  // Support both Vercel cron (Authorization: Bearer <secret>) and custom header
+  const authHeader = req.headers.get("authorization");
   const cronSecret = req.headers.get("x-cron-secret");
-  const isExternalCron = cronSecret && cronSecret === process.env.CRON_SECRET;
+  const isExternalCron =
+    (authHeader && authHeader === `Bearer ${process.env.CRON_SECRET}`) ||
+    (cronSecret && cronSecret === process.env.CRON_SECRET);
 
   if (!isExternalCron) {
     const session = await getServerSession(authOptions);

@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 type EntityFilter = "ALL" | "STATUS_CHANGE" | "COMMENT" | "TASK_CREATED";
 
@@ -166,7 +167,7 @@ export default function AuditLogPage() {
 
         {/* Audit log entries */}
         {isLoading ? (
-          <p className="text-muted-foreground text-center py-12">Cargando historial...</p>
+          <TableSkeleton rows={8} />
         ) : (
           <div className="space-y-2">
             {auditData?.items.map((entry) => (

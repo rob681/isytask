@@ -167,3 +167,102 @@
 .driver-popover .driver-popover-arrow-side-bottom {
   border-color: var(--popover-bg) !important;
 }
+
+/* ═══════════════════════════════════════════════
+   Visual Polish — Animations & Enhancements
+   ═══════════════════════════════════════════════ */
+
+/* ── 1. Smooth Scroll ── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── 2. Page Enter Animation ── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: fadeInUp 300ms ease-out both;
+}
+
+/* ── 3. Stagger Animation Utilities ── */
+.stagger-1 {
+  animation-delay: 100ms;
+}
+.stagger-2 {
+  animation-delay: 200ms;
+}
+.stagger-3 {
+  animation-delay: 300ms;
+}
+.stagger-4 {
+  animation-delay: 400ms;
+}
+
+/* ── 4. Card Hover Enhancement ── */
+.card-hover {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 4px 24px -4px rgba(0, 0, 0, 0.12),
+    0 12px 36px -8px rgba(0, 0, 0, 0.08);
+}
+
+/* ── 5. Status Badge Pulse ── */
+@keyframes badgePulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+.badge-pulse {
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+/* ── 6. Skeleton Shimmer Enhancement ── */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@layer components {
+  [data-slot="skeleton"],
+  .skeleton-shimmer {
+    animation: shimmer 1.8s ease-in-out infinite !important;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted-foreground) / 0.08) 40%,
+      hsl(var(--muted)) 80%
+    ) !important;
+    background-size: 200% 100% !important;
+  }
+}
+
+/* ── 7. Focus Ring Enhancement ── */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 4px;
+  transition: outline-offset 150ms ease;
+}

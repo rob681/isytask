@@ -37,6 +37,7 @@ import {
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { DashboardSkeleton } from "@/components/ui/skeleton";
 
 const STATUS_CHART_COLORS: Record<string, string> = {
   RECIBIDA: "#3b82f6",
@@ -89,7 +90,7 @@ export default function ClienteDashboardPage() {
       <>
         <Topbar title="Mi Dashboard" />
         <div className="p-6">
-          <p className="text-muted-foreground">Cargando dashboard...</p>
+          <DashboardSkeleton />
         </div>
       </>
     );

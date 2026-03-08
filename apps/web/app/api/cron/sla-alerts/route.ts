@@ -13,10 +13,18 @@ import { db } from "@isytask/db";
  *   b) The task is approaching deadline (within configured threshold, default 2 hours)
  * - Only sends one SLA alert per task per day to avoid spam
  */
+export async function GET(req: NextRequest) {
+  return POST(req);
+}
+
 export async function POST(req: NextRequest) {
   // Allow either authenticated admin or API key (for external cron)
+  // Support both Vercel cron (Authorization: Bearer <secret>) and custom header
+  const authHeader = req.headers.get("authorization");
   const cronSecret = req.headers.get("x-cron-secret");
-  const isExternalCron = cronSecret && cronSecret === process.env.CRON_SECRET;
+  const isExternalCron =
+    (authHeader && authHeader === `Bearer ${process.env.CRON_SECRET}`) ||
+    (cronSecret && cronSecret === process.env.CRON_SECRET);
 
   if (!isExternalCron) {
     const session = await getServerSession(authOptions);

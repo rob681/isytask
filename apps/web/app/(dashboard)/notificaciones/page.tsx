@@ -25,6 +25,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { PushNotificationToggle } from "@/components/push-notification-toggle";
+import { NotificationsSkeleton } from "@/components/ui/skeleton";
 
 const NOTIFICATION_ICONS: Record<string, React.ReactNode> = {
   TAREA_RECIBIDA: <FileText className="h-4 w-4 text-yellow-600" />,
@@ -101,7 +102,7 @@ export default function NotificacionesPage() {
         </div>
 
         {isLoading ? (
-          <p className="text-muted-foreground text-sm">Cargando...</p>
+          <NotificationsSkeleton />
         ) : !data || data.length === 0 ? (
           <Card className="p-8 text-center">
             <Bell className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />

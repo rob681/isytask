@@ -36,6 +36,7 @@ import { SlaIndicator } from "@/components/sla-indicator";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { DetailPageSkeleton } from "@/components/ui/skeleton";
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   RECIBIDA: <Circle className="h-4 w-4 text-yellow-600" />,
@@ -119,7 +120,7 @@ export default function ClienteTaskDetailPage() {
       <>
         <Topbar title="Detalle de Tarea" />
         <div className="p-6">
-          <p className="text-muted-foreground">Cargando...</p>
+          <DetailPageSkeleton />
         </div>
       </>
     );
