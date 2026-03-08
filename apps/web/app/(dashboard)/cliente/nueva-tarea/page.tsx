@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
 import { TASK_CATEGORY_LABELS, TASK_CATEGORY_BADGE_COLORS } from "@isytask/shared";
-import { Clock, Info, FileText, X, Sparkles } from "lucide-react";
+import { Clock, Info, FileText, X, Sparkles, Upload, CheckCircle2 } from "lucide-react";
 
 export default function NuevaTareaPage() {
   const router = useRouter();
@@ -350,6 +350,49 @@ export default function NuevaTareaPage() {
                           onChange={(e) => handleFieldChange(field.fieldName, e.target.value)}
                           required={field.isRequired}
                         />
+                      )}
+
+                      {field.fieldType === "FILE" && (
+                        <div>
+                          <label className="flex flex-col items-center gap-2 p-4 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
+                            <Upload className="h-5 w-5 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">
+                              {formData[field.fieldName]
+                                ? `Archivo seleccionado`
+                                : "Haz clic para seleccionar un archivo"}
+                            </span>
+                            <input
+                              type="file"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const fd = new FormData();
+                                fd.append("file", file);
+                                try {
+                                  const res = await fetch("/api/uploads/file", {
+                                    method: "POST",
+                                    body: fd,
+                                  });
+                                  if (res.ok) {
+                                    const data = await res.json();
+                                    handleFieldChange(field.fieldName, data.url);
+                                  } else {
+                                    alert("Error al subir archivo");
+                                  }
+                                } catch {
+                                  alert("Error al subir archivo");
+                                }
+                              }}
+                            />
+                          </label>
+                          {formData[field.fieldName] && (
+                            <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Archivo subido correctamente
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}

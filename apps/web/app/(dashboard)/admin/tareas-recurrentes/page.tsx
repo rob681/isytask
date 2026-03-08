@@ -15,6 +15,7 @@ import {
   Play,
   Clock,
   Calendar,
+  UserPlus,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
@@ -43,11 +44,17 @@ export default function TareasRecurrentesPage() {
   const { data: recurringTasks, isLoading } = trpc.recurring.list.useQuery();
   const { data: clients } = trpc.clients.list.useQuery({ page: 1, pageSize: 200 });
   const { data: services } = trpc.services.list.useQuery();
+  const { data: teamMembers } = trpc.users.list.useQuery({
+    role: "COLABORADOR",
+    page: 1,
+    pageSize: 50,
+  });
 
   // Form state
   const [formData, setFormData] = useState({
     clientId: "",
     serviceId: "",
+    colaboradorId: "",
     title: "",
     description: "",
     category: "NORMAL" as "URGENTE" | "NORMAL" | "LARGO_PLAZO",
@@ -63,6 +70,7 @@ export default function TareasRecurrentesPage() {
       setFormData({
         clientId: "",
         serviceId: "",
+        colaboradorId: "",
         title: "",
         description: "",
         category: "NORMAL",
@@ -89,9 +97,11 @@ export default function TareasRecurrentesPage() {
   });
 
   const handleCreate = () => {
+    const { colaboradorId, ...rest } = formData;
     createMutation.mutate({
-      ...formData,
+      ...rest,
       recurrenceDay: formData.recurrenceType === "DAILY" ? undefined : formData.recurrenceDay,
+      ...(colaboradorId && { colaboradorId }),
     });
   };
 
@@ -166,6 +176,32 @@ export default function TareasRecurrentesPage() {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-1">
+                    <UserPlus className="h-4 w-4" />
+                    Asignar encargado (opcional)
+                  </label>
+                  <select
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={formData.colaboradorId}
+                    onChange={(e) =>
+                      setFormData({ ...formData, colaboradorId: e.target.value })
+                    }
+                  >
+                    <option value="">Auto-asignar según carga</option>
+                    {teamMembers?.users
+                      .filter((u) => u.colaboradorProfile)
+                      .map((u) => (
+                        <option key={u.colaboradorProfile!.id} value={u.colaboradorProfile!.id}>
+                          {u.name}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Si no seleccionas, se asignará automáticamente al colaborador con menos carga.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -374,6 +410,12 @@ export default function TareasRecurrentesPage() {
                         <span>
                           Servicio: {rt.service.name}
                         </span>
+                        {(rt as any).colaborador && (
+                          <span className="flex items-center gap-1">
+                            <UserPlus className="h-3 w-3" />
+                            {(rt as any).colaborador.user.name}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
                         {rt.lastRunAt && (

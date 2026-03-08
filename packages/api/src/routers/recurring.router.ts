@@ -52,6 +52,9 @@ export const recurringRouter = router({
           include: { user: { select: { name: true } } },
         },
         service: { select: { name: true } },
+        colaborador: {
+          include: { user: { select: { name: true } } },
+        },
         createdBy: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -64,6 +67,7 @@ export const recurringRouter = router({
       z.object({
         clientId: z.string(),
         serviceId: z.string(),
+        colaboradorId: z.string().optional(),
         title: z.string().min(1, "Título requerido"),
         description: z.string().optional(),
         category: z.enum(["URGENTE", "NORMAL", "LARGO_PLAZO"]).default("NORMAL"),
@@ -92,6 +96,7 @@ export const recurringRouter = router({
         data: {
           clientId: input.clientId,
           serviceId: input.serviceId,
+          colaboradorId: input.colaboradorId ?? null,
           title: input.title,
           description: input.description,
           category: input.category,
@@ -179,29 +184,31 @@ export const recurringRouter = router({
 
     for (const rt of dueRecurring) {
       try {
-        // Auto-assign collaborator (same logic as task creation)
-        let autoColaboradorId: string | null = null;
-        const assignments = await ctx.db.colaboradorClientAssignment.findMany({
-          where: { clientId: rt.clientId },
-          select: { colaboradorId: true },
-        });
-
-        if (assignments.length === 1) {
-          autoColaboradorId = assignments[0].colaboradorId;
-        } else if (assignments.length > 1) {
-          const colabIds = assignments.map((a) => a.colaboradorId);
-          const taskCounts = await ctx.db.task.groupBy({
-            by: ["colaboradorId"],
-            where: {
-              colaboradorId: { in: colabIds },
-              status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA", "REVISION"] },
-            },
-            _count: true,
+        // Use pre-assigned collaborator, or auto-assign
+        let autoColaboradorId: string | null = rt.colaboradorId;
+        if (!autoColaboradorId) {
+          const assignments = await ctx.db.colaboradorClientAssignment.findMany({
+            where: { clientId: rt.clientId },
+            select: { colaboradorId: true },
           });
-          const countMap = new Map(taskCounts.map((tc) => [tc.colaboradorId, tc._count]));
-          autoColaboradorId = colabIds.sort(
-            (a, b) => (countMap.get(a) ?? 0) - (countMap.get(b) ?? 0)
-          )[0];
+
+          if (assignments.length === 1) {
+            autoColaboradorId = assignments[0].colaboradorId;
+          } else if (assignments.length > 1) {
+            const colabIds = assignments.map((a) => a.colaboradorId);
+            const taskCounts = await ctx.db.task.groupBy({
+              by: ["colaboradorId"],
+              where: {
+                colaboradorId: { in: colabIds },
+                status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA", "REVISION"] },
+              },
+              _count: true,
+            });
+            const countMap = new Map(taskCounts.map((tc) => [tc.colaboradorId, tc._count]));
+            autoColaboradorId = colabIds.sort(
+              (a, b) => (countMap.get(a) ?? 0) - (countMap.get(b) ?? 0)
+            )[0];
+          }
         }
 
         // Calculate dueAt from SLA

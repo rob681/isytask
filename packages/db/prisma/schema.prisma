@@ -136,8 +136,9 @@ model ColaboradorProfile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  assignedTasks   Task[]
-  assignedClients ColaboradorClientAssignment[]
+  assignedTasks    Task[]
+  assignedClients  ColaboradorClientAssignment[]
+  recurringTasks   RecurringTask[] @relation("RecurringTaskColaborador")
 
   @@map("colaborador_profiles")
 }
@@ -381,7 +382,9 @@ model RecurringTask {
   title          String
   description    String?
   category       TaskCategory   @default(NORMAL)
-  formData       Json?
+  formData        Json?
+  colaboradorId   String?
+  colaborador     ColaboradorProfile? @relation("RecurringTaskColaborador", fields: [colaboradorId], references: [id])
 
   recurrenceType RecurrenceType
   recurrenceDay  Int?           // 0-6 for weekly (0=Sunday), 1-31 for monthly

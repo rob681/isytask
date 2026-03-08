@@ -29,6 +29,8 @@ import {
   Eye,
   ThumbsUp,
   ThumbsDown,
+  Upload,
+  Paperclip,
 } from "lucide-react";
 import { SlaIndicator } from "@/components/sla-indicator";
 import Link from "next/link";
@@ -72,6 +74,45 @@ export default function ClienteTaskDetailPage() {
       setComment("");
     },
   });
+
+  const [uploading, setUploading] = useState(false);
+
+  const addAttachment = trpc.tasks.addAttachment.useMutation({
+    onSuccess: () => {
+      utils.tasks.getById.invalidate({ id: taskId });
+    },
+  });
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/uploads/file", {
+          method: "POST",
+          body: fd,
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert(err.error || "Error al subir archivo");
+          continue;
+        }
+        const data = await res.json();
+        await addAttachment.mutateAsync({
+          taskId,
+          fileName: data.fileName,
+          fileSize: data.fileSize,
+          mimeType: data.mimeType,
+          url: data.url,
+          isDeliverable: false,
+        });
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -461,12 +502,15 @@ export default function ClienteTaskDetailPage() {
             </Card>
 
             {/* Attachments */}
-            {task.attachments.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Archivos</CardTitle>
-                </CardHeader>
-                <CardContent>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  <Paperclip className="h-4 w-4 inline mr-2" />
+                  Archivos ({task.attachments.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {task.attachments.length > 0 && (
                   <div className="space-y-2">
                     {task.attachments.map((att) => (
                       <a
@@ -486,9 +530,34 @@ export default function ClienteTaskDetailPage() {
                       </a>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                )}
+
+                {/* Upload area */}
+                {!["CANCELADA", "FINALIZADA"].includes(task.status) && (
+                  <label
+                    className="flex flex-col items-center gap-2 p-4 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleFileUpload(e.dataTransfer.files);
+                    }}
+                  >
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground text-center">
+                      {uploading ? "Subiendo..." : "Arrastra archivos o haz clic para subir"}
+                    </span>
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e.target.files)}
+                      disabled={uploading}
+                    />
+                  </label>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Dates */}
             <Card>
