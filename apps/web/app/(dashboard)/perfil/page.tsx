@@ -6,11 +6,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc/client";
-import { Camera, Save, Loader2, RotateCcw, CreditCard, Shield } from "lucide-react";
+import { Camera, Save, Loader2, RotateCcw, CreditCard, Shield, Lock, Eye, EyeOff, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CardContent } from "@/components/ui/card";
 import { useSession } from "next-auth/react";
 import { useTourReset } from "@/components/tour/guided-tour";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { changePasswordSchema } from "@isytask/shared";
+import type { z } from "zod";
 
 export default function PerfilPage() {
   const { data: session, update: updateSession } = useSession();
@@ -50,6 +54,28 @@ export default function PerfilPage() {
       });
     },
   });
+
+  // Change password form
+  const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  const changePasswordMutation = trpc.users.changePassword.useMutation({
+    onSuccess: () => {
+      setPasswordSuccess(true);
+      passwordForm.reset();
+      setTimeout(() => setPasswordSuccess(false), 4000);
+    },
+  });
+
+  const passwordForm = useForm<z.infer<typeof changePasswordSchema>>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: { currentPassword: "", newPassword: "", confirmNewPassword: "" },
+  });
+
+  function handleChangePassword(data: z.infer<typeof changePasswordSchema>) {
+    setPasswordSuccess(false);
+    changePasswordMutation.mutate(data);
+  }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -297,6 +323,95 @@ export default function PerfilPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Change Password */}
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Lock className="h-5 w-5" />
+            Cambiar Contraseña
+          </h3>
+          <form onSubmit={passwordForm.handleSubmit(handleChangePassword)} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Contraseña actual</label>
+              <div className="relative">
+                <Input
+                  {...passwordForm.register("currentPassword")}
+                  type={showPasswords.current ? "text" : "password"}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowPasswords(s => ({ ...s, current: !s.current }))}
+                >
+                  {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {passwordForm.formState.errors.currentPassword && (
+                <p className="text-xs text-destructive mt-1">{passwordForm.formState.errors.currentPassword.message}</p>
+              )}
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Nueva contraseña</label>
+              <div className="relative">
+                <Input
+                  {...passwordForm.register("newPassword")}
+                  type={showPasswords.new ? "text" : "password"}
+                  placeholder="Mínimo 6 caracteres"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowPasswords(s => ({ ...s, new: !s.new }))}
+                >
+                  {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {passwordForm.formState.errors.newPassword && (
+                <p className="text-xs text-destructive mt-1">{passwordForm.formState.errors.newPassword.message}</p>
+              )}
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Confirmar nueva contraseña</label>
+              <div className="relative">
+                <Input
+                  {...passwordForm.register("confirmNewPassword")}
+                  type={showPasswords.confirm ? "text" : "password"}
+                  placeholder="Repite la nueva contraseña"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowPasswords(s => ({ ...s, confirm: !s.confirm }))}
+                >
+                  {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {passwordForm.formState.errors.confirmNewPassword && (
+                <p className="text-xs text-destructive mt-1">{passwordForm.formState.errors.confirmNewPassword.message}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <Button type="submit" disabled={changePasswordMutation.isLoading}>
+                {changePasswordMutation.isLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Lock className="h-4 w-4 mr-2" />
+                )}
+                Cambiar contraseña
+              </Button>
+              {passwordSuccess && (
+                <span className="text-sm text-green-600 flex items-center gap-1">
+                  <Check className="h-4 w-4" />
+                  Contraseña actualizada
+                </span>
+              )}
+            </div>
+            {changePasswordMutation.error && (
+              <p className="text-sm text-destructive">{changePasswordMutation.error.message}</p>
+            )}
+          </form>
+        </Card>
 
         {/* Tour reset */}
         <Card className="p-6">

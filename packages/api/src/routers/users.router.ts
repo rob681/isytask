@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { compare, hash } from "bcryptjs";
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, adminOrPermissionProcedure, protectedProcedure, router } from "../trpc";
-import { createUserSchema, updateUserSchema, ALL_PERMISSIONS } from "@isytask/shared";
+import { createUserSchema, updateUserSchema, changePasswordSchema, ALL_PERMISSIONS } from "@isytask/shared";
 import { createToken } from "../lib/tokens";
 import { sendEmailNotification } from "../lib/email";
 
@@ -263,6 +264,57 @@ export const usersRouter = router({
           name: true,
           avatarUrl: true,
         },
+      });
+    }),
+
+  // Any authenticated user: change own password
+  changePassword: protectedProcedure
+    .input(changePasswordSchema)
+    .mutation(async ({ ctx, input }) => {
+      const user = await ctx.db.user.findUniqueOrThrow({
+        where: { id: ctx.session.user.id },
+        select: { passwordHash: true },
+      });
+
+      if (!user.passwordHash) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Tu cuenta no tiene contraseña configurada. Usa el enlace de invitación.",
+        });
+      }
+
+      const isValid = await compare(input.currentPassword, user.passwordHash);
+      if (!isValid) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "La contraseña actual es incorrecta.",
+        });
+      }
+
+      const newHash = await hash(input.newPassword, 12);
+      await ctx.db.user.update({
+        where: { id: ctx.session.user.id },
+        data: { passwordHash: newHash },
+      });
+
+      return { success: true };
+    }),
+
+  // Admin: toggle user active status
+  toggleActive: adminProcedure
+    .input(z.object({ id: z.string(), isActive: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      // Prevent admin from deactivating themselves
+      if (input.id === ctx.session.user.id) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No puedes desactivar tu propia cuenta.",
+        });
+      }
+      return ctx.db.user.update({
+        where: { id: input.id },
+        data: { isActive: input.isActive },
+        select: { id: true, isActive: true, name: true },
       });
     }),
 

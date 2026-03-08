@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
-import { Plus, Search, Mail, Phone, Shield, Check, RefreshCw, Clock } from "lucide-react";
+import { Plus, Search, Mail, Phone, Shield, Check, RefreshCw, Clock, UserX, UserCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -49,6 +49,13 @@ export default function EquipoPage() {
   const resendMutation = trpc.users.resendInvitation.useMutation({
     onSuccess: () => {
       alert("Invitación reenviada exitosamente");
+    },
+  });
+
+  const toggleActiveMutation = trpc.users.toggleActive.useMutation({
+    onSuccess: (data) => {
+      utils.users.list.invalidate();
+      alert(`${data.name} ahora está ${data.isActive ? "activo" : "inactivo"}`);
     },
   });
 
@@ -184,9 +191,9 @@ export default function EquipoPage() {
                       </div>
                     </div>
 
-                    {/* Resend invitation */}
-                    {!user.hasPassword && (
-                      <div className="mt-2">
+                    {/* Actions */}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {!user.hasPassword && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -197,8 +204,24 @@ export default function EquipoPage() {
                           <RefreshCw className={`h-3 w-3 mr-1 ${resendMutation.isLoading ? "animate-spin" : ""}`} />
                           Reenviar invitación
                         </Button>
-                      </div>
-                    )}
+                      )}
+                      <Button
+                        size="sm"
+                        variant={user.isActive ? "outline" : "default"}
+                        className={`h-7 text-xs ${user.isActive ? "text-destructive hover:text-destructive" : ""}`}
+                        disabled={toggleActiveMutation.isLoading}
+                        onClick={() => {
+                          if (user.isActive && !confirm(`¿Desactivar a ${user.name}? No podrá acceder al sistema.`)) return;
+                          toggleActiveMutation.mutate({ id: user.id, isActive: !user.isActive });
+                        }}
+                      >
+                        {user.isActive ? (
+                          <><UserX className="h-3 w-3 mr-1" />Desactivar</>
+                        ) : (
+                          <><UserCheck className="h-3 w-3 mr-1" />Activar</>
+                        )}
+                      </Button>
+                    </div>
 
                     {/* Permissions section */}
                     <div className="mt-3 pt-3 border-t">

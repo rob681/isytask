@@ -40,6 +40,15 @@ export const validateTokenSchema = z.object({
   type: z.enum(["INVITATION", "PASSWORD_RESET"]),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Contraseña actual requerida"),
+  newPassword: z.string().min(6, "Mínimo 6 caracteres"),
+  confirmNewPassword: z.string().min(6, "Mínimo 6 caracteres"),
+}).refine((data) => data.newPassword === data.confirmNewPassword, {
+  message: "Las contraseñas no coinciden",
+  path: ["confirmNewPassword"],
+});
+
 export const updateUserSchema = z.object({
   id: z.string(),
   email: z.string().email("Email inválido").optional(),

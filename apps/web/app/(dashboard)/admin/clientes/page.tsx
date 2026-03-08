@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
-import { Plus, Search, Mail, Phone, Building2, ListTodo, UserPlus, X, ShieldCheck, CreditCard, Pencil, Check, RefreshCw, Clock } from "lucide-react";
+import { Plus, Search, Mail, Phone, Building2, ListTodo, UserPlus, X, ShieldCheck, CreditCard, Pencil, Check, RefreshCw, Clock, UserX, UserCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createUserSchema } from "@isytask/shared";
@@ -45,6 +45,13 @@ export default function ClientesPage() {
   const resendMutation = trpc.users.resendInvitation.useMutation({
     onSuccess: () => {
       alert("Invitación reenviada exitosamente");
+    },
+  });
+
+  const toggleActiveMutation = trpc.users.toggleActive.useMutation({
+    onSuccess: (data) => {
+      utils.clients.list.invalidate();
+      alert(`${data.name} ahora está ${data.isActive ? "activo" : "inactivo"}`);
     },
   });
 
@@ -212,9 +219,9 @@ export default function ClientesPage() {
                       </div>
                     </div>
 
-                    {/* Resend invitation */}
-                    {!(client.user as any).hasPassword && (
-                      <div className="mt-2">
+                    {/* Actions */}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {!(client.user as any).hasPassword && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -225,8 +232,24 @@ export default function ClientesPage() {
                           <RefreshCw className={`h-3 w-3 mr-1 ${resendMutation.isLoading ? "animate-spin" : ""}`} />
                           Reenviar invitación
                         </Button>
-                      </div>
-                    )}
+                      )}
+                      <Button
+                        size="sm"
+                        variant={client.user.isActive ? "outline" : "default"}
+                        className={`h-7 text-xs ${client.user.isActive ? "text-destructive hover:text-destructive" : ""}`}
+                        disabled={toggleActiveMutation.isLoading}
+                        onClick={() => {
+                          if (client.user.isActive && !confirm(`¿Desactivar a ${client.user.name}? No podrá acceder al sistema.`)) return;
+                          toggleActiveMutation.mutate({ id: client.user.id, isActive: !client.user.isActive });
+                        }}
+                      >
+                        {client.user.isActive ? (
+                          <><UserX className="h-3 w-3 mr-1" />Desactivar</>
+                        ) : (
+                          <><UserCheck className="h-3 w-3 mr-1" />Activar</>
+                        )}
+                      </Button>
+                    </div>
 
                     <div className="mt-3 pt-3 border-t flex items-center justify-between text-sm">
                       <span className="flex items-center gap-1 text-muted-foreground">
