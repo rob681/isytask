@@ -1,0 +1,421 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────
+// ENUMS
+// ──────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  COLABORADOR
+  CLIENTE
+}
+
+enum TaskStatus {
+  RECIBIDA
+  EN_PROGRESO
+  DUDA
+  REVISION
+  FINALIZADA
+  CANCELADA
+}
+
+enum RecurrenceType {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum TaskCategory {
+  URGENTE
+  NORMAL
+  LARGO_PLAZO
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  IN_APP
+}
+
+enum NotificationType {
+  TAREA_RECIBIDA
+  TAREA_EN_PROGRESO
+  TAREA_DUDA
+  TAREA_EN_REVISION
+  TAREA_FINALIZADA
+  TAREA_CANCELADA
+  NUEVO_COMENTARIO
+  CAMBIO_SOLICITADO
+  TAREA_PENDIENTE_RECORDATORIO
+  SLA_ALERTA
+}
+
+enum FieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  SELECT
+  MULTISELECT
+  CHECKBOX
+  COLOR_PICKER
+  FILE
+  DATE
+  URL
+}
+
+// ──────────────────────────────────────────────
+// USERS & AUTH
+// ──────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  phone        String?
+  avatarUrl    String?
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  clientProfile      ClientProfile?
+  colaboradorProfile ColaboradorProfile?
+  notifications      Notification[]
+  pushSubscriptions  PushSubscription[]
+  sentComments       TaskComment[]
+  taskStatusChanges  TaskStatusLog[]
+  createdRecurringTasks RecurringTask[]
+
+  @@map("users")
+}
+
+// ──────────────────────────────────────────────
+// CLIENT PROFILE
+// ──────────────────────────────────────────────
+
+model ClientProfile {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName          String?
+  logoUrl              String?
+  planName             String   @default("Básico")
+  planDescription      String?
+  monthlyTaskLimit     Int      @default(10)
+  revisionLimitPerTask Int      @default(3)
+  googleDriveFolderId  String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  tasks               Task[]
+  assignedColaboradors ColaboradorClientAssignment[]
+  allowedServices     ClientServiceAccess[]
+  recurringTasks      RecurringTask[]
+
+  @@map("client_profiles")
+}
+
+// ──────────────────────────────────────────────
+// COLABORADOR PROFILE
+// ──────────────────────────────────────────────
+
+model ColaboradorProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialty   String?
+  permissions Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignedTasks   Task[]
+  assignedClients ColaboradorClientAssignment[]
+
+  @@map("colaborador_profiles")
+}
+
+// ──────────────────────────────────────────────
+// COLABORADOR <-> CLIENT ASSIGNMENT
+// ──────────────────────────────────────────────
+
+model ColaboradorClientAssignment {
+  id            String             @id @default(cuid())
+  colaboradorId String
+  colaborador   ColaboradorProfile @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  clientId      String
+  client        ClientProfile      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignedAt    DateTime           @default(now())
+
+  @@unique([colaboradorId, clientId])
+  @@map("colaborador_client_assignments")
+}
+
+// ──────────────────────────────────────────────
+// CLIENT <-> SERVICE ACCESS
+// ──────────────────────────────────────────────
+
+model ClientServiceAccess {
+  id        String        @id @default(cuid())
+  clientId  String
+  client    ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([clientId, serviceId])
+  @@map("client_service_access")
+}
+
+// ──────────────────────────────────────────────
+// SERVICES & DYNAMIC FORM FIELDS
+// ──────────────────────────────────────────────
+
+model Service {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  description    String?
+  estimatedHours Int
+  slaHours       Int?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  formFields     ServiceFormField[]
+  tasks          Task[]
+  clientAccess   ClientServiceAccess[]
+  recurringTasks RecurringTask[]
+  templates      TaskTemplate[]
+
+  @@map("services")
+}
+
+model ServiceFormField {
+  id          String    @id @default(cuid())
+  serviceId   String
+  service     Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  fieldName   String
+  label       String
+  fieldType   FieldType
+  placeholder String?
+  isRequired  Boolean   @default(false)
+  sortOrder   Int       @default(0)
+  options     Json?
+  validation  Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([serviceId, fieldName])
+  @@map("service_form_fields")
+}
+
+// ──────────────────────────────────────────────
+// TASKS
+// ──────────────────────────────────────────────
+
+model Task {
+  id            String       @id @default(cuid())
+  taskNumber    Int          @default(autoincrement())
+  clientId      String
+  client        ClientProfile @relation(fields: [clientId], references: [id])
+  serviceId     String
+  service       Service      @relation(fields: [serviceId], references: [id])
+  colaboradorId String?
+  colaborador   ColaboradorProfile? @relation(fields: [colaboradorId], references: [id])
+
+  title          String
+  description    String?
+  category       TaskCategory
+  status         TaskStatus   @default(RECIBIDA)
+
+  estimatedHours Int
+  extraHours     Int          @default(0)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  dueAt          DateTime?
+
+  revisionsUsed  Int          @default(0)
+  revisionsLimit Int
+
+  formData       Json?
+  driveFolderId  String?
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  comments    TaskComment[]
+  statusLog   TaskStatusLog[]
+  attachments TaskAttachment[]
+
+  @@index([clientId, status])
+  @@index([colaboradorId, status])
+  @@index([status, category])
+  @@index([createdAt])
+  @@map("tasks")
+}
+
+// ──────────────────────────────────────────────
+// TASK STATUS AUDIT LOG
+// ──────────────────────────────────────────────
+
+model TaskStatusLog {
+  id          String      @id @default(cuid())
+  taskId      String
+  task        Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fromStatus  TaskStatus?
+  toStatus    TaskStatus
+  changedById String
+  changedBy   User        @relation(fields: [changedById], references: [id])
+  note        String?
+  createdAt   DateTime    @default(now())
+
+  @@index([taskId, createdAt])
+  @@map("task_status_log")
+}
+
+// ──────────────────────────────────────────────
+// COMMENTS
+// ──────────────────────────────────────────────
+
+model TaskComment {
+  id         String   @id @default(cuid())
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  content    String
+  isQuestion Boolean  @default(false)
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([taskId, createdAt])
+  @@map("task_comments")
+}
+
+// ──────────────────────────────────────────────
+// FILE ATTACHMENTS
+// ──────────────────────────────────────────────
+
+model TaskAttachment {
+  id             String   @id @default(cuid())
+  taskId         String
+  task           Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fileName       String
+  fileSize       Int
+  mimeType       String
+  googleDriveId  String
+  googleDriveUrl String
+  uploadedById   String
+  isDeliverable  Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([taskId])
+  @@map("task_attachments")
+}
+
+// ──────────────────────────────────────────────
+// NOTIFICATIONS
+// ──────────────────────────────────────────────
+
+model Notification {
+  id         String              @id @default(cuid())
+  userId     String
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  channel    NotificationChannel
+  title      String
+  body       String
+  taskId     String?
+  isRead     Boolean             @default(false)
+  sentAt     DateTime?
+  failReason String?
+  createdAt  DateTime            @default(now())
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+
+// ──────────────────────────────────────────────
+// SYSTEM CONFIGURATION
+// ──────────────────────────────────────────────
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model SystemConfig {
+  id    String @id @default(cuid())
+  key   String @unique
+  value Json
+
+  @@map("system_config")
+}
+
+// ──────────────────────────────────────────────
+// RECURRING TASKS
+// ──────────────────────────────────────────────
+
+model RecurringTask {
+  id             String         @id @default(cuid())
+  clientId       String
+  client         ClientProfile  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceId      String
+  service        Service        @relation(fields: [serviceId], references: [id])
+  title          String
+  description    String?
+  category       TaskCategory   @default(NORMAL)
+  formData       Json?
+
+  recurrenceType RecurrenceType
+  recurrenceDay  Int?           // 0-6 for weekly (0=Sunday), 1-31 for monthly
+  recurrenceTime String         @default("09:00")
+
+  isActive       Boolean        @default(true)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+
+  createdById    String
+  createdBy      User           @relation(fields: [createdById], references: [id])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([isActive, nextRunAt])
+  @@map("recurring_tasks")
+}
+
+// ──────────────────────────────────────────────
+// TASK TEMPLATES
+// ──────────────────────────────────────────────
+
+model TaskTemplate {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  serviceId   String
+  service     Service      @relation(fields: [serviceId], references: [id])
+  category    TaskCategory @default(NORMAL)
+  formData    Json?
+  isActive    Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("task_templates")
+}

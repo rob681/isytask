@@ -1,0 +1,25 @@
+{
+  "name": "@isytask/api",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@isytask/db": "workspace:*",
+    "@isytask/shared": "workspace:*",
+    "@trpc/server": "^10.45.0",
+    "bcryptjs": "^2.4.3",
+    "resend": "^6.9.3",
+    "superjson": "^2.2.0",
+    "web-push": "^3.6.7",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/web-push": "^3.6.4",
+    "typescript": "^5.5.0"
+  }
+}

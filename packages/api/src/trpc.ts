@@ -1,0 +1,111 @@
+import { initTRPC, TRPCError } from "@trpc/server";
+import superjson from "superjson";
+import type { Context } from "./context";
+import type { Role, Permission } from "@isytask/shared";
+
+const t = initTRPC.context<Context>().create({
+  transformer: superjson,
+  errorFormatter({ shape }) {
+    return shape;
+  },
+});
+
+export const router = t.router;
+export const publicProcedure = t.procedure;
+
+const isAuthenticated = t.middleware(({ ctx, next }) => {
+  if (!ctx.session?.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "No autenticado" });
+  }
+  return next({
+    ctx: {
+      session: ctx.session,
+    },
+  });
+});
+
+// ── Rate Limiter ──
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX = 200; // requests per window
+const rateLimitMap = new Map<string, number[]>();
+
+// Cleanup stale entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamps] of rateLimitMap) {
+    const valid = timestamps.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
+    if (valid.length === 0) rateLimitMap.delete(key);
+    else rateLimitMap.set(key, valid);
+  }
+}, 5 * 60_000);
+
+const rateLimit = t.middleware(({ ctx, next }) => {
+  const userId = ctx.session?.user?.id;
+  if (!userId) return next();
+
+  const now = Date.now();
+  const timestamps = rateLimitMap.get(userId) ?? [];
+  const windowTimestamps = timestamps.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
+
+  if (windowTimestamps.length >= RATE_LIMIT_MAX) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "Demasiadas solicitudes. Intenta de nuevo en un momento.",
+    });
+  }
+
+  windowTimestamps.push(now);
+  rateLimitMap.set(userId, windowTimestamps);
+  return next();
+});
+
+export const protectedProcedure = t.procedure.use(isAuthenticated).use(rateLimit);
+
+function requireRole(...roles: Role[]) {
+  return t.middleware(({ ctx, next }) => {
+    if (!ctx.session?.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "No autenticado" });
+    }
+    if (!roles.includes(ctx.session.user.role as Role)) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "No tienes permisos para esta acción",
+      });
+    }
+    return next({ ctx: { session: ctx.session } });
+  });
+}
+
+/** Allows ADMIN role OR a COLABORADOR with one of the specified permissions */
+export function requireAdminOrPermission(...permissions: Permission[]) {
+  return t.middleware(({ ctx, next }) => {
+    if (!ctx.session?.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "No autenticado" });
+    }
+    const { role } = ctx.session.user;
+    if (role === "ADMIN") {
+      return next({ ctx: { session: ctx.session } });
+    }
+    if (role === "COLABORADOR") {
+      const userPerms = (ctx.session.user.permissions ?? []) as string[];
+      if (permissions.some((p) => userPerms.includes(p))) {
+        return next({ ctx: { session: ctx.session } });
+      }
+    }
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "No tienes permisos para esta acción",
+    });
+  });
+}
+
+export const adminProcedure = t.procedure.use(requireRole("ADMIN"));
+export const colaboradorProcedure = t.procedure.use(
+  requireRole("COLABORADOR")
+);
+export const clienteProcedure = t.procedure.use(requireRole("CLIENTE"));
+
+/** Create a procedure that allows ADMIN or COLABORADOR with specific permissions */
+export function adminOrPermissionProcedure(...permissions: Permission[]) {
+  return t.procedure.use(requireAdminOrPermission(...permissions));
+}

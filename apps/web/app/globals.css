@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── Light Mode ── */
+  :root {
+    --background: 230 25% 97%;
+    --foreground: 230 25% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 230 25% 10%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 230 25% 93%;
+    --secondary-foreground: 230 25% 15%;
+    --muted: 230 20% 93%;
+    --muted-foreground: 230 15% 50%;
+    --accent: 230 25% 93%;
+    --accent-foreground: 230 25% 15%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 230 20% 90%;
+    --input: 230 20% 90%;
+    --ring: 262 83% 58%;
+    --radius: 0.75rem;
+    --sidebar: 230 30% 95%;
+
+    /* Gradient tokens */
+    --gradient-start: 262 83% 58%;
+    --gradient-end: 185 80% 50%;
+  }
+
+  /* ── Dark Mode ── */
+  .dark {
+    --background: 230 35% 7%;
+    --foreground: 220 20% 92%;
+    --card: 230 30% 11%;
+    --card-foreground: 220 20% 92%;
+    --primary: 262 83% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 230 25% 16%;
+    --secondary-foreground: 220 20% 92%;
+    --muted: 230 25% 16%;
+    --muted-foreground: 220 15% 55%;
+    --accent: 230 25% 16%;
+    --accent-foreground: 220 20% 92%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 230 20% 18%;
+    --input: 230 20% 18%;
+    --ring: 262 83% 65%;
+    --sidebar: 230 35% 8%;
+
+    --gradient-start: 262 83% 65%;
+    --gradient-end: 185 80% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* ── Utility Classes ── */
+@layer components {
+  .glass-card {
+    @apply rounded-2xl border bg-card/80 backdrop-blur-sm shadow-sm;
+  }
+  .shadow-soft {
+    box-shadow: 0 2px 20px -4px rgba(0, 0, 0, 0.08),
+      0 8px 30px -6px rgba(0, 0, 0, 0.04);
+  }
+  .gradient-primary {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-end)) 100%
+    );
+  }
+  .gradient-text {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-end)) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .gradient-border {
+    position: relative;
+    border: 0;
+  }
+  .gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-end)) 100%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/* ── Driver.js Tour Overrides ── */
+.driver-popover {
+  --popover-bg: hsl(var(--card));
+  --popover-fg: hsl(var(--card-foreground));
+  background-color: var(--popover-bg) !important;
+  color: var(--popover-fg) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.3) !important;
+}
+
+.driver-popover .driver-popover-title {
+  color: var(--popover-fg) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+.driver-popover .driver-popover-description {
+  color: hsl(var(--muted-foreground)) !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+.driver-popover .driver-popover-progress-text {
+  color: hsl(var(--muted-foreground)) !important;
+  font-size: 12px !important;
+}
+
+.driver-popover .driver-popover-navigation-btns button {
+  border-radius: 10px !important;
+  padding: 6px 16px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+.driver-popover .driver-popover-next-btn,
+.driver-popover .driver-popover-close-btn[data-is-done-btn="true"] {
+  background: linear-gradient(135deg, hsl(var(--gradient-start)), hsl(var(--gradient-end))) !important;
+  color: white !important;
+}
+
+.driver-popover .driver-popover-prev-btn {
+  background-color: transparent !important;
+  color: hsl(var(--muted-foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+}
+
+.driver-popover .driver-popover-arrow-side-left,
+.driver-popover .driver-popover-arrow-side-right,
+.driver-popover .driver-popover-arrow-side-top,
+.driver-popover .driver-popover-arrow-side-bottom {
+  border-color: var(--popover-bg) !important;
+}
