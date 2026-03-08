@@ -31,11 +31,17 @@ const CONFIG_DEFAULTS: Record<string, any> = {
   resend_api_key: "",
   email_from_address: "noreply@isytask.com",
   email_from_name: "Isytask",
+  // WhatsApp (Twilio)
+  twilio_account_sid: "",
+  twilio_auth_token: "",
+  twilio_whatsapp_from: "",
   // Push notifications
   vapid_public_key: "",
   vapid_private_key: "",
   vapid_subject: "mailto:admin@isytask.com",
   notification_push_enabled: false,
+  // SLA
+  sla_alert_threshold_hours: 2,
   timezone: "America/Mexico_City",
   time_format: "24h",
   date_format: "DD/MM/YYYY",

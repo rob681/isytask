@@ -3,6 +3,7 @@ import type { NotificationType, TaskStatus } from "@isytask/shared";
 import { NOTIFICATION_TEMPLATES } from "@isytask/shared";
 import { sendEmailNotification } from "./email";
 import { sendPushNotification } from "./push";
+import { sendWhatsAppMessage } from "./whatsapp";
 
 interface NotifyParams {
   db: PrismaClient;
@@ -110,6 +111,40 @@ export async function sendNotification({ db, userId, type, taskId, data }: Notif
   }).catch((error) => {
     console.error("[Notification] Push send failed:", error);
   });
+
+  // ─── 4. WhatsApp notification ───────────────────────
+  // Fire and forget
+  (async () => {
+    try {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { phone: true },
+      });
+      if (!user?.phone) return;
+
+      const sent = await sendWhatsAppMessage({
+        db,
+        to: user.phone,
+        body: `*${title}*\n${body}`,
+      });
+
+      if (sent) {
+        await db.notification.create({
+          data: {
+            userId,
+            type,
+            channel: "WHATSAPP",
+            title,
+            body,
+            taskId,
+            sentAt: new Date(),
+          },
+        });
+      }
+    } catch (error) {
+      console.error("[Notification] WhatsApp send failed:", error);
+    }
+  })();
 }
 
 /**

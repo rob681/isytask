@@ -691,6 +691,57 @@ export default function ConfiguracionPage() {
         {/* Push Notification Configuration */}
         <PushConfigCard values={values} updateValue={updateValue} />
 
+        {/* WhatsApp Configuration (Twilio) */}
+        {values.notification_whatsapp_enabled && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <CardTitle className="text-base">Configuración de WhatsApp</CardTitle>
+                  <CardDescription>
+                    Envía notificaciones por WhatsApp usando Twilio. Configura tu cuenta en{" "}
+                    <a href="https://www.twilio.com/whatsapp" target="_blank" rel="noreferrer" className="text-primary underline">
+                      twilio.com/whatsapp
+                    </a>
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Account SID</label>
+                <Input
+                  type="password"
+                  value={values.twilio_account_sid ?? ""}
+                  onChange={(e) => updateValue("twilio_account_sid", e.target.value)}
+                  placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Auth Token</label>
+                <Input
+                  type="password"
+                  value={values.twilio_auth_token ?? ""}
+                  onChange={(e) => updateValue("twilio_auth_token", e.target.value)}
+                  placeholder="Tu Twilio Auth Token"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Número de WhatsApp remitente</label>
+                <Input
+                  value={values.twilio_whatsapp_from ?? ""}
+                  onChange={(e) => updateValue("twilio_whatsapp_from", e.target.value)}
+                  placeholder="whatsapp:+14155238886"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Para pruebas usa el sandbox de Twilio. En producción, tu número aprobado de WhatsApp Business.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {saveMutation.error && (
           <p className="text-sm text-destructive">{saveMutation.error.message}</p>
         )}

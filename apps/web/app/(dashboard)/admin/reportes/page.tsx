@@ -145,6 +145,36 @@ export default function ReportesPage() {
 
   const hasFilters = datePreset !== "all";
 
+  const exportCSV = () => {
+    if (!activeData || activeData.length === 0) return;
+
+    const nameKey = reportView === "service" ? "serviceName" : reportView === "colaborador" ? "colaboradorName" : "clientName";
+    const viewLabel = reportView === "service" ? "Servicio" : reportView === "colaborador" ? "Colaborador" : "Cliente";
+    const headers = [viewLabel, "Tareas", "Horas Estimadas", "Horas Reales", "Horas Extra", "Diferencia", "Eficiencia %"];
+
+    const rows = activeData.map((row: any) => {
+      const diff = Math.round((row.estimated - row.actual) * 10) / 10;
+      return [
+        `"${row[nameKey]}"`,
+        row.count,
+        row.estimated,
+        row.actual,
+        row.extra,
+        diff,
+        row.efficiency,
+      ].join(",");
+    });
+
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `reporte-${viewLabel.toLowerCase()}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const exportPDF = () => {
     if (!activeData || activeData.length === 0 || !overallKpis) return;
 
@@ -240,15 +270,26 @@ export default function ReportesPage() {
             Análisis de horas estimadas vs. reales para evaluar la rentabilidad del trabajo
           </p>
           {activeData && activeData.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={exportPDF}
-            >
-              <FileDown className="h-4 w-4" />
-              Exportar PDF
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={exportCSV}
+              >
+                <FileDown className="h-4 w-4" />
+                CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={exportPDF}
+              >
+                <FileDown className="h-4 w-4" />
+                PDF
+              </Button>
+            </div>
           )}
         </div>
 
