@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
-import { Plus, Search, Mail, Phone, Building2, ListTodo, UserPlus, X, ShieldCheck, CreditCard, Pencil, Check } from "lucide-react";
+import { Plus, Search, Mail, Phone, Building2, ListTodo, UserPlus, X, ShieldCheck, CreditCard, Pencil, Check, RefreshCw, Clock } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createUserSchema } from "@isytask/shared";
@@ -39,6 +39,12 @@ export default function ClientesPage() {
       utils.clients.list.invalidate();
       setShowForm(false);
       reset();
+    },
+  });
+
+  const resendMutation = trpc.users.resendInvitation.useMutation({
+    onSuccess: () => {
+      alert("Invitación reenviada exitosamente");
     },
   });
 
@@ -137,20 +143,13 @@ export default function ClientesPage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Contraseña</label>
-                    <Input {...register("password")} type="password" placeholder="Min. 6 caracteres" />
-                    {errors.password && (
-                      <p className="text-xs text-destructive">{errors.password.message}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
                     <label className="text-sm font-medium">Teléfono (WhatsApp)</label>
                     <Input {...register("phone")} placeholder="+52 1234567890" />
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <Button type="submit" disabled={createMutation.isLoading}>
-                    {createMutation.isLoading ? "Creando..." : "Crear Cliente"}
+                    {createMutation.isLoading ? "Creando..." : "Invitar Cliente"}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => { setShowForm(false); reset(); }}>
                     Cancelar
@@ -200,10 +199,35 @@ export default function ClientesPage() {
                           </p>
                         )}
                       </div>
-                      <Badge variant={client.user.isActive ? "default" : "secondary"}>
-                        {client.user.isActive ? "Activo" : "Inactivo"}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {!(client.user as any).hasPassword && (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            Pendiente
+                          </Badge>
+                        )}
+                        <Badge variant={client.user.isActive ? "default" : "secondary"}>
+                          {client.user.isActive ? "Activo" : "Inactivo"}
+                        </Badge>
+                      </div>
                     </div>
+
+                    {/* Resend invitation */}
+                    {!(client.user as any).hasPassword && (
+                      <div className="mt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={resendMutation.isLoading}
+                          onClick={() => resendMutation.mutate({ userId: client.user.id })}
+                        >
+                          <RefreshCw className={`h-3 w-3 mr-1 ${resendMutation.isLoading ? "animate-spin" : ""}`} />
+                          Reenviar invitación
+                        </Button>
+                      </div>
+                    )}
+
                     <div className="mt-3 pt-3 border-t flex items-center justify-between text-sm">
                       <span className="flex items-center gap-1 text-muted-foreground">
                         <ListTodo className="h-3 w-3" />

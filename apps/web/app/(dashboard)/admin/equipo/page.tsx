@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
-import { Plus, Search, Mail, Phone, Shield, Check } from "lucide-react";
+import { Plus, Search, Mail, Phone, Shield, Check, RefreshCw, Clock } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -43,6 +43,12 @@ export default function EquipoPage() {
   const permissionsMutation = trpc.users.updatePermissions.useMutation({
     onSuccess: () => {
       utils.users.list.invalidate();
+    },
+  });
+
+  const resendMutation = trpc.users.resendInvitation.useMutation({
+    onSuccess: () => {
+      alert("Invitación reenviada exitosamente");
     },
   });
 
@@ -115,20 +121,13 @@ export default function EquipoPage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Contraseña</label>
-                    <Input {...register("password")} type="password" placeholder="Min. 6 caracteres" />
-                    {errors.password && (
-                      <p className="text-xs text-destructive">{errors.password.message}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
                     <label className="text-sm font-medium">Teléfono (WhatsApp)</label>
                     <Input {...register("phone")} placeholder="+52 1234567890" />
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <Button type="submit" disabled={createMutation.isLoading}>
-                    {createMutation.isLoading ? "Creando..." : "Crear Miembro"}
+                    {createMutation.isLoading ? "Creando..." : "Invitar Miembro"}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => { setShowForm(false); reset(); }}>
                     Cancelar
@@ -173,11 +172,33 @@ export default function EquipoPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        {!user.hasPassword && (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            Pendiente
+                          </Badge>
+                        )}
                         <Badge variant={user.isActive ? "default" : "secondary"}>
                           {user.isActive ? "Activo" : "Inactivo"}
                         </Badge>
                       </div>
                     </div>
+
+                    {/* Resend invitation */}
+                    {!user.hasPassword && (
+                      <div className="mt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={resendMutation.isLoading}
+                          onClick={() => resendMutation.mutate({ userId: user.id })}
+                        >
+                          <RefreshCw className={`h-3 w-3 mr-1 ${resendMutation.isLoading ? "animate-spin" : ""}`} />
+                          Reenviar invitación
+                        </Button>
+                      </div>
+                    )}
 
                     {/* Permissions section */}
                     <div className="mt-3 pt-3 border-t">

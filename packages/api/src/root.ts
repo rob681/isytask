@@ -1,4 +1,5 @@
 import { router } from "./trpc";
+import { authRouter } from "./routers/auth.router";
 import { usersRouter } from "./routers/users.router";
 import { clientsRouter } from "./routers/clients.router";
 import { servicesRouter } from "./routers/services.router";
@@ -14,6 +15,7 @@ import { auditRouter } from "./routers/audit.router";
 import { templatesRouter } from "./routers/templates.router";
 
 export const appRouter = router({
+  auth: authRouter,
   users: usersRouter,
   clients: clientsRouter,
   services: servicesRouter,

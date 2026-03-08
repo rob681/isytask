@@ -7,10 +7,37 @@ export const loginSchema = z.object({
 
 export const createUserSchema = z.object({
   email: z.string().email("Email inválido"),
-  password: z.string().min(6, "Mínimo 6 caracteres"),
   name: z.string().min(1, "Nombre requerido"),
   phone: z.string().optional(),
   role: z.enum(["ADMIN", "COLABORADOR", "CLIENTE"]),
+});
+
+// Auth flow schemas
+export const setupPasswordSchema = z.object({
+  token: z.string().min(1, "Token requerido"),
+  password: z.string().min(6, "Mínimo 6 caracteres"),
+  confirmPassword: z.string().min(6, "Mínimo 6 caracteres"),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Las contraseñas no coinciden",
+  path: ["confirmPassword"],
+});
+
+export const requestResetSchema = z.object({
+  email: z.string().email("Email inválido"),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, "Token requerido"),
+  password: z.string().min(6, "Mínimo 6 caracteres"),
+  confirmPassword: z.string().min(6, "Mínimo 6 caracteres"),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Las contraseñas no coinciden",
+  path: ["confirmPassword"],
+});
+
+export const validateTokenSchema = z.object({
+  token: z.string().min(1),
+  type: z.enum(["INVITATION", "PASSWORD_RESET"]),
 });
 
 export const updateUserSchema = z.object({

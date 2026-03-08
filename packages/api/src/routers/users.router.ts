@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { hash } from "bcryptjs";
+import { TRPCError } from "@trpc/server";
 import { adminProcedure, adminOrPermissionProcedure, protectedProcedure, router } from "../trpc";
 import { createUserSchema, updateUserSchema, ALL_PERMISSIONS } from "@isytask/shared";
+import { createToken } from "../lib/tokens";
+import { sendEmailNotification } from "../lib/email";
 
 const teamProcedure = adminOrPermissionProcedure("manage_team");
 
@@ -26,7 +28,7 @@ export const usersRouter = router({
         }),
       };
 
-      const [users, total] = await Promise.all([
+      const [rawUsers, total] = await Promise.all([
         ctx.db.user.findMany({
           where,
           select: {
@@ -38,6 +40,7 @@ export const usersRouter = router({
             isActive: true,
             avatarUrl: true,
             createdAt: true,
+            passwordHash: true,
             clientProfile: {
               select: {
                 id: true,
@@ -60,6 +63,12 @@ export const usersRouter = router({
         }),
         ctx.db.user.count({ where }),
       ]);
+
+      // Map passwordHash to hasPassword boolean (never send hash to frontend)
+      const users = rawUsers.map(({ passwordHash, ...rest }) => ({
+        ...rest,
+        hasPassword: !!passwordHash,
+      }));
 
       return { users, total, pages: Math.ceil(total / input.pageSize) };
     }),
@@ -113,12 +122,10 @@ export const usersRouter = router({
   create: teamProcedure
     .input(createUserSchema)
     .mutation(async ({ ctx, input }) => {
-      const passwordHash = await hash(input.password, 12);
-
+      // Create user WITHOUT password — they'll set it via invitation link
       const user = await ctx.db.user.create({
         data: {
           email: input.email,
-          passwordHash,
           name: input.name,
           phone: input.phone,
           role: input.role,
@@ -144,7 +151,56 @@ export const usersRouter = router({
         },
       });
 
+      // Generate invitation token and send email
+      const tokenString = await createToken(ctx.db, user.id, "INVITATION");
+      const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+      const invitationUrl = `${baseUrl}/auth/setup-password?token=${tokenString}`;
+
+      await sendEmailNotification({
+        db: ctx.db,
+        to: user.email,
+        subject: "Has sido invitado a Isytask",
+        title: "Bienvenido a Isytask",
+        body: `Hola ${user.name},<br><br>Has sido invitado a unirte a Isytask como <strong>${user.role === "CLIENTE" ? "Cliente" : user.role === "COLABORADOR" ? "Colaborador" : "Administrador"}</strong>. Haz clic en el botón de abajo para configurar tu contraseña y acceder a la plataforma.<br><br>Este enlace expira en 48 horas.`,
+        actionUrl: invitationUrl,
+        actionLabel: "Configurar mi contraseña",
+      }).catch((err) => {
+        console.error("[Invitation] Email failed:", err);
+      });
+
       return user;
+    }),
+
+  resendInvitation: teamProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const user = await ctx.db.user.findUniqueOrThrow({
+        where: { id: input.userId },
+        select: { id: true, email: true, name: true, passwordHash: true, role: true },
+      });
+
+      if (user.passwordHash) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "El usuario ya ha configurado su contraseña.",
+        });
+      }
+
+      const tokenString = await createToken(ctx.db, user.id, "INVITATION");
+      const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+      const invitationUrl = `${baseUrl}/auth/setup-password?token=${tokenString}`;
+
+      await sendEmailNotification({
+        db: ctx.db,
+        to: user.email,
+        subject: "Invitación a Isytask (reenvío)",
+        title: "Invitación a Isytask",
+        body: `Hola ${user.name},<br><br>Se te ha reenviado la invitación a Isytask. Haz clic en el botón de abajo para configurar tu contraseña.<br><br>Este enlace expira en 48 horas.`,
+        actionUrl: invitationUrl,
+        actionLabel: "Configurar mi contraseña",
+      });
+
+      return { success: true };
     }),
 
   update: teamProcedure

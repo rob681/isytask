@@ -37,6 +37,7 @@ export const clientsRouter = router({
                 phone: true,
                 isActive: true,
                 avatarUrl: true,
+                passwordHash: true,
               },
             },
             assignedColaboradors: {
@@ -60,7 +61,17 @@ export const clientsRouter = router({
         ctx.db.clientProfile.count({ where }),
       ]);
 
-      return { clients, total, pages: Math.ceil(total / input.pageSize) };
+      // Map passwordHash to hasPassword boolean (never send hash to frontend)
+      const mappedClients = clients.map((client) => ({
+        ...client,
+        user: {
+          ...client.user,
+          hasPassword: !!client.user.passwordHash,
+          passwordHash: undefined,
+        },
+      }));
+
+      return { clients: mappedClients, total, pages: Math.ceil(total / input.pageSize) };
     }),
 
   getById: clientsProcedure

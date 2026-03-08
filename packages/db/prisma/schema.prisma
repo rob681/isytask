@@ -38,6 +38,11 @@ enum TaskCategory {
   LARGO_PLAZO
 }
 
+enum TokenType {
+  INVITATION
+  PASSWORD_RESET
+}
+
 enum NotificationChannel {
   EMAIL
   WHATSAPP
@@ -77,7 +82,7 @@ enum FieldType {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?
   name         String
   phone        String?
   avatarUrl    String?
@@ -93,6 +98,7 @@ model User {
   sentComments       TaskComment[]
   taskStatusChanges  TaskStatusLog[]
   createdRecurringTasks RecurringTask[]
+  tokens            Token[]
 
   @@map("users")
 }
@@ -421,4 +427,23 @@ model TaskTemplate {
   updatedAt   DateTime     @updatedAt
 
   @@map("task_templates")
+}
+
+// ──────────────────────────────────────────────
+// AUTH TOKENS (Invitations & Password Reset)
+// ──────────────────────────────────────────────
+
+model Token {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  type      TokenType
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([token, type])
+  @@index([userId])
+  @@map("tokens")
 }

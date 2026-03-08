@@ -35,6 +35,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Credenciales inválidas");
         }
 
+        // User hasn't set a password yet (invitation pending)
+        if (!user.passwordHash) {
+          throw new Error("Debes configurar tu contraseña primero. Revisa tu correo de invitación.");
+        }
+
         const isValid = await compare(credentials.password, user.passwordHash);
         if (!isValid) {
           throw new Error("Credenciales inválidas");
