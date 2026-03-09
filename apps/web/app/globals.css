@@ -9,7 +9,7 @@
     --foreground: 230 25% 10%;
     --card: 0 0% 100%;
     --card-foreground: 230 25% 10%;
-    --primary: 262 83% 58%;
+    --primary: 210 85% 53%;
     --primary-foreground: 0 0% 100%;
     --secondary: 230 25% 93%;
     --secondary-foreground: 230 25% 15%;
@@ -21,13 +21,13 @@
     --destructive-foreground: 0 0% 100%;
     --border: 230 20% 90%;
     --input: 230 20% 90%;
-    --ring: 262 83% 58%;
+    --ring: 210 85% 53%;
     --radius: 0.75rem;
     --sidebar: 230 30% 95%;
 
     /* Gradient tokens */
-    --gradient-start: 262 83% 58%;
-    --gradient-end: 185 80% 50%;
+    --gradient-start: 210 85% 53%;
+    --gradient-end: 160 84% 39%;
   }
 
   /* ── Dark Mode ── */
@@ -36,7 +36,7 @@
     --foreground: 220 20% 92%;
     --card: 230 30% 11%;
     --card-foreground: 220 20% 92%;
-    --primary: 262 83% 65%;
+    --primary: 210 85% 60%;
     --primary-foreground: 0 0% 100%;
     --secondary: 230 25% 16%;
     --secondary-foreground: 220 20% 92%;
@@ -48,11 +48,11 @@
     --destructive-foreground: 0 0% 100%;
     --border: 230 20% 18%;
     --input: 230 20% 18%;
-    --ring: 262 83% 65%;
+    --ring: 210 85% 60%;
     --sidebar: 230 35% 8%;
 
-    --gradient-start: 262 83% 65%;
-    --gradient-end: 185 80% 55%;
+    --gradient-start: 210 85% 60%;
+    --gradient-end: 160 84% 45%;
   }
 }
 

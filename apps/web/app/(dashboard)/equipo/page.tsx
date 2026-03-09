@@ -257,7 +257,7 @@ export default function EquipoPage() {
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                         <Tooltip />
-                        <Bar dataKey="tareas" name="Tareas" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="tareas" name="Tareas" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
