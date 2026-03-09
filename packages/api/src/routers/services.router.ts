@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { adminProcedure, protectedProcedure, router } from "../trpc";
-import { createServiceSchema, updateServiceSchema, formFieldConfigSchema } from "@isytask/shared";
+import { createServiceSchema, updateServiceSchema, updateServiceSchemaFull, formFieldConfigSchema } from "@isytask/shared";
 
 export const servicesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -52,9 +52,7 @@ export const servicesRouter = router({
     }),
 
   update: adminProcedure
-    .input(updateServiceSchema.extend({
-      slaHours: z.number().int().min(1).optional().nullable(),
-    }))
+    .input(updateServiceSchemaFull)
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
       return ctx.db.service.update({ where: { id }, data });
@@ -139,5 +137,20 @@ export const servicesRouter = router({
           })
         )
       );
+    }),
+
+  // Get AI agent config for a service (used by client task creation page)
+  getAgentConfig: protectedProcedure
+    .input(z.object({ serviceId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const service = await ctx.db.service.findUnique({
+        where: { id: input.serviceId },
+        select: { agentEnabled: true, agentModel: true, name: true },
+      });
+      return {
+        agentEnabled: service?.agentEnabled ?? false,
+        agentModel: service?.agentModel ?? null,
+        serviceName: service?.name ?? "",
+      };
     }),
 });

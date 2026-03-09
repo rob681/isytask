@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc/client";
 import {
   Settings, Save, Building2, ListTodo, Bell, ImageIcon, Upload,
-  Trash2, Loader2, Clock, Globe, Plus, X, Mail, Smartphone, Key,
+  Trash2, Loader2, Clock, Globe, Plus, X, Mail, Smartphone, Key, Bot,
 } from "lucide-react";
 import { CardListSkeleton } from "@/components/ui/skeleton";
 
@@ -742,6 +742,67 @@ export default function ConfiguracionPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* AI Agent Configuration (OpenRouter) */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <CardTitle className="text-base">Agente IA</CardTitle>
+                <CardDescription>
+                  Configura un agente de IA para asistir a los clientes al crear tareas.
+                  Usa OpenRouter para acceder a múltiples modelos. Obtén tu API Key en{" "}
+                  <a href="https://openrouter.ai" target="_blank" rel="noreferrer" className="text-primary underline">
+                    openrouter.ai
+                  </a>
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <label className="flex items-center justify-between p-3 rounded-md border cursor-pointer hover:bg-muted/50">
+              <div>
+                <p className="text-sm font-medium">Habilitar Agente IA</p>
+                <p className="text-xs text-muted-foreground">
+                  Permite que un agente IA asista a los clientes durante la creación de tareas
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={values.ai_agent_enabled ?? false}
+                onChange={(e) => updateValue("ai_agent_enabled", e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+            </label>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">OpenRouter API Key</label>
+              <Input
+                type="password"
+                value={values.openrouter_api_key ?? ""}
+                onChange={(e) => updateValue("openrouter_api_key", e.target.value)}
+                placeholder="sk-or-v1-xxxxxxxxxx"
+              />
+              <p className="text-xs text-muted-foreground">
+                Tu clave de API de OpenRouter.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Modelo por defecto</label>
+              <Input
+                value={values.ai_agent_default_model ?? "openai/gpt-4o-mini"}
+                onChange={(e) => updateValue("ai_agent_default_model", e.target.value)}
+                placeholder="openai/gpt-4o-mini"
+              />
+              <p className="text-xs text-muted-foreground">
+                Modelo de OpenRouter a usar. Puede ser sobrescrito por servicio.
+                Ejemplos: openai/gpt-4o-mini, anthropic/claude-3.5-sonnet, google/gemini-2.0-flash-001
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         {saveMutation.error && (
           <p className="text-sm text-destructive">{saveMutation.error.message}</p>

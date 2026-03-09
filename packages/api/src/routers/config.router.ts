@@ -46,6 +46,10 @@ const CONFIG_DEFAULTS: Record<string, any> = {
   time_format: "24h",
   date_format: "DD/MM/YYYY",
   language: "es",
+  // AI Agent (OpenRouter)
+  openrouter_api_key: "",
+  ai_agent_enabled: false,
+  ai_agent_default_model: "openai/gpt-4o-mini",
 };
 
 const PUBLIC_KEYS = [

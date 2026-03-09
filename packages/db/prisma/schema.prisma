@@ -202,6 +202,11 @@ model Service {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  // AI Agent configuration
+  agentEnabled      Boolean  @default(false)
+  agentInstructions String?  @db.Text
+  agentModel        String?
+
   formFields     ServiceFormField[]
   tasks          Task[]
   clientAccess   ClientServiceAccess[]

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   DndContext,
@@ -23,8 +23,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc/client";
 import { SortableFieldItem } from "@/components/forms/sortable-field-item";
 import { FieldFormModal } from "@/components/forms/field-form-modal";
-import { ArrowLeft, Plus, Clock, FileText } from "lucide-react";
+import { ArrowLeft, Plus, Clock, FileText, Bot, Loader2, Save } from "lucide-react";
 import Link from "next/link";
+import { CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 export default function CamposPage() {
   const params = useParams();
@@ -35,9 +37,31 @@ export default function CamposPage() {
   const [editingField, setEditingField] = useState<any>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // AI Agent state
+  const [agentEnabled, setAgentEnabled] = useState(false);
+  const [agentInstructions, setAgentInstructions] = useState("");
+  const [agentModel, setAgentModel] = useState("");
+  const [agentLoaded, setAgentLoaded] = useState(false);
+
   const utils = trpc.useUtils();
   const { data: service } = trpc.services.getById.useQuery({ id: serviceId });
   const { data: fields } = trpc.services.getFormFields.useQuery({ serviceId });
+
+  // Load agent config from service data
+  useEffect(() => {
+    if (service && !agentLoaded) {
+      setAgentEnabled(service.agentEnabled ?? false);
+      setAgentInstructions(service.agentInstructions ?? "");
+      setAgentModel(service.agentModel ?? "");
+      setAgentLoaded(true);
+    }
+  }, [service, agentLoaded]);
+
+  const updateServiceMutation = trpc.services.update.useMutation({
+    onSuccess: () => {
+      utils.services.getById.invalidate({ id: serviceId });
+    },
+  });
 
   const addField = trpc.services.addFormField.useMutation({
     onSuccess: () => {
@@ -174,6 +198,92 @@ export default function CamposPage() {
             </div>
           </div>
         </div>
+
+        {/* AI Agent Configuration */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <CardTitle className="text-base">Agente IA</CardTitle>
+                <CardDescription>
+                  Configura un asistente de IA que guíe al cliente al crear tareas para este servicio
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <label className="flex items-center justify-between p-3 rounded-md border cursor-pointer hover:bg-muted/50">
+              <div>
+                <p className="text-sm font-medium">Habilitar agente IA para este servicio</p>
+                <p className="text-xs text-muted-foreground">
+                  Los clientes verán un chat interactivo al crear una tarea de este servicio
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={agentEnabled}
+                onChange={(e) => setAgentEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+            </label>
+
+            {agentEnabled && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Instrucciones del agente</label>
+                  <textarea
+                    value={agentInstructions}
+                    onChange={(e) => setAgentInstructions(e.target.value)}
+                    rows={5}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    placeholder={`Ejemplo: Eres un consultor de diseño. Pregunta al cliente sobre:\n- Nombre de la empresa y a qué se dedica\n- Colores preferidos o paleta de marca\n- Estilo deseado (moderno, clásico, minimalista)\n- Referencias de diseño que le gusten`}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Instrucciones que guían al agente sobre qué preguntar y cómo asistir al cliente.
+                    El agente también conocerá automáticamente los campos del formulario.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Modelo (opcional)</label>
+                  <Input
+                    value={agentModel}
+                    onChange={(e) => setAgentModel(e.target.value)}
+                    placeholder="Dejar vacío para usar el modelo global"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Sobrescribe el modelo por defecto para este servicio. Ej: openai/gpt-4o, anthropic/claude-3.5-sonnet
+                  </p>
+                </div>
+              </>
+            )}
+
+            <Button
+              size="sm"
+              onClick={() => {
+                updateServiceMutation.mutate({
+                  id: serviceId,
+                  agentEnabled,
+                  agentInstructions: agentInstructions || null,
+                  agentModel: agentModel || null,
+                });
+              }}
+              disabled={updateServiceMutation.isLoading}
+            >
+              {updateServiceMutation.isLoading ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5 mr-1" />
+              )}
+              Guardar configuración IA
+            </Button>
+
+            {updateServiceMutation.isSuccess && (
+              <p className="text-xs text-green-600">Configuración del agente guardada</p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Fields list */}
         <Card>

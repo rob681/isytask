@@ -146,6 +146,9 @@ export const createServiceSchemaFull = createServiceSchema.extend({
 
 export const updateServiceSchemaFull = updateServiceSchema.extend({
   slaHours: z.number().int().min(1).optional().nullable(),
+  agentEnabled: z.boolean().optional(),
+  agentInstructions: z.string().optional().nullable(),
+  agentModel: z.string().optional().nullable(),
 });
 
 export const createCommentSchema = z.object({
