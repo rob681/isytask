@@ -35,28 +35,23 @@ interface KanbanCardProps {
 }
 
 export function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
+  const { attributes, listeners, setNodeRef, isDragging } =
     useDraggable({
       id: task.id,
     });
 
-  const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-      }
-    : undefined;
-
+  // When using DragOverlay, the original card should NOT move —
+  // it stays in place (faded) and the DragOverlay handles the visual drag.
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...listeners}
       {...attributes}
-      onClick={onClick}
+      onClick={isDragging ? undefined : onClick}
       className={cn(
-        "rounded-lg border bg-card p-3 shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/40 transition-all",
-        isDragging && "opacity-30",
-        isDragOverlay && "shadow-lg rotate-2 border-primary/50"
+        "rounded-lg border bg-card p-3 shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/40 transition-colors",
+        isDragging && "opacity-30 pointer-events-none",
+        isDragOverlay && "shadow-xl rotate-[2deg] scale-105 border-primary/50 ring-2 ring-primary/20"
       )}
     >
       {/* Header */}
