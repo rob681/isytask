@@ -8,7 +8,7 @@
  * Or with environment variables:
  *   ADMIN_EMAIL=admin@tudominio.com ADMIN_PASSWORD=TuPasswordSeguro123! pnpm db:init
  */
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../generated/client";
 import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();

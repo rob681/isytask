@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd ../.. && pnpm build && cp $(find node_modules/.pnpm -name 'libquery_engine-rhel-openssl-3.0.x.so.node' -type f | head -1) apps/web/.next/server/",
+  "buildCommand": "cd ../.. && pnpm build",
   "installCommand": "pnpm install",
   "framework": "nextjs",
   "crons": [
