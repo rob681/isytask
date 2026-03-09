@@ -1,6 +1,11 @@
+const path = require("path");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@isytask/api", "@isytask/db", "@isytask/shared"],
+  experimental: {
+    outputFileTracingRoot: path.join(__dirname, "../../"),
+  },
   images: {
     remotePatterns: [
       {
