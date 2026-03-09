@@ -954,7 +954,7 @@ export const tasksRouter = router({
     }),
 
   // Admin: list all tasks
-  listAll: adminProcedure
+  listAll: adminOrPermissionProcedure("manage_tasks")
     .input(
       z.object({
         page: z.number().int().min(1).default(1),
