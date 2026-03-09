@@ -197,7 +197,12 @@ export default function AdminTareasPage() {
                       <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <User className="h-3 w-3" />
-                          {task.colaborador?.user.name ?? "Sin asignar"}
+                          {(task as any).assignments?.length > 0
+                            ? (task as any).assignments[0].colaborador.user.name +
+                              ((task as any).assignments.length > 1
+                                ? ` (+${(task as any).assignments.length - 1})`
+                                : "")
+                            : task.colaborador?.user.name ?? "Sin asignar"}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />

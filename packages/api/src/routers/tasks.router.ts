@@ -227,6 +227,12 @@ export const tasksRouter = router({
               note: "Tarea creada",
             },
           },
+          // Dual-write: create TaskAssignment for primary collaborator
+          ...(autoColaboradorId && {
+            assignments: {
+              create: { colaboradorId: autoColaboradorId, role: "PRIMARY" },
+            },
+          }),
         },
         include: {
           service: { select: { name: true } },
@@ -331,6 +337,20 @@ export const tasksRouter = router({
         dueAtForClient.setHours(dueAtForClient.getHours() + service.slaHours);
       }
 
+      // Build assignment creates for dual-write
+      const assignmentCreates: Array<{ colaboradorId: string; role: "PRIMARY" | "HELPER"; assignedById: string }> = [];
+      if (colaboradorId) {
+        assignmentCreates.push({ colaboradorId, role: "PRIMARY", assignedById: ctx.session.user.id });
+      }
+      // Additional helpers from input
+      if (input.additionalAssignees?.length) {
+        for (const helperColabId of input.additionalAssignees) {
+          if (helperColabId !== colaboradorId) {
+            assignmentCreates.push({ colaboradorId: helperColabId, role: "HELPER", assignedById: ctx.session.user.id });
+          }
+        }
+      }
+
       const task = await ctx.db.task.create({
         data: {
           clientId: clientProfile.id,
@@ -351,6 +371,9 @@ export const tasksRouter = router({
               note: "Tarea creada por administración",
             },
           },
+          ...(assignmentCreates.length > 0 && {
+            assignments: { create: assignmentCreates },
+          }),
         },
         include: {
           service: { select: { name: true } },
@@ -557,7 +580,10 @@ export const tasksRouter = router({
 
       return ctx.db.task.findMany({
         where: {
-          colaboradorId: profile.id,
+          OR: [
+            { colaboradorId: profile.id },
+            { assignments: { some: { colaboradorId: profile.id } } },
+          ],
           ...(input.status && { status: input.status }),
         },
         include: {
@@ -565,6 +591,10 @@ export const tasksRouter = router({
             include: { user: { select: { name: true } } },
           },
           service: { select: { name: true } },
+          assignments: {
+            include: { colaborador: { include: { user: { select: { name: true } } } } },
+            orderBy: { role: "asc" },
+          },
           _count: { select: { comments: true, attachments: true } },
         },
         orderBy: { createdAt: "asc" },
@@ -683,9 +713,187 @@ export const tasksRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Se requiere un colaborador o usuario" });
       }
 
-      return ctx.db.task.update({
+      // Update primary assignment + dual-write to TaskAssignment
+      const task = await ctx.db.task.findUniqueOrThrow({ where: { id: input.taskId } });
+
+      await ctx.db.$transaction(async (tx) => {
+        // Set new primary on Task
+        await tx.task.update({
+          where: { id: input.taskId },
+          data: { colaboradorId },
+        });
+
+        // Demote previous PRIMARY to HELPER (if different)
+        if (task.colaboradorId && task.colaboradorId !== colaboradorId) {
+          await tx.taskAssignment.updateMany({
+            where: { taskId: input.taskId, colaboradorId: task.colaboradorId, role: "PRIMARY" },
+            data: { role: "HELPER" },
+          });
+        }
+
+        // Upsert new PRIMARY assignment
+        await tx.taskAssignment.upsert({
+          where: { taskId_colaboradorId: { taskId: input.taskId, colaboradorId } },
+          create: { taskId: input.taskId, colaboradorId, role: "PRIMARY", assignedById: ctx.session.user.id },
+          update: { role: "PRIMARY" },
+        });
+      });
+
+      return ctx.db.task.findUniqueOrThrow({
         where: { id: input.taskId },
-        data: { colaboradorId },
+        include: {
+          assignments: {
+            include: { colaborador: { include: { user: { select: { name: true } } } } },
+            orderBy: { role: "asc" },
+          },
+        },
+      });
+    }),
+
+  // Admin: add a collaborator to a task
+  addAssignee: adminProcedure
+    .input(
+      z.object({
+        taskId: z.string(),
+        colaboradorId: z.string().optional(),
+        userId: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      let colaboradorId = input.colaboradorId;
+
+      if (input.userId && !colaboradorId) {
+        let profile = await ctx.db.colaboradorProfile.findUnique({
+          where: { userId: input.userId },
+        });
+        if (!profile) {
+          profile = await ctx.db.colaboradorProfile.create({
+            data: { userId: input.userId },
+          });
+        }
+        colaboradorId = profile.id;
+      }
+
+      if (!colaboradorId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Se requiere un colaborador" });
+      }
+
+      const task = await ctx.db.task.findUniqueOrThrow({ where: { id: input.taskId } });
+
+      // Determine role: PRIMARY if task has no collaborator, HELPER otherwise
+      const role = task.colaboradorId ? "HELPER" : "PRIMARY";
+
+      await ctx.db.taskAssignment.upsert({
+        where: { taskId_colaboradorId: { taskId: input.taskId, colaboradorId } },
+        create: {
+          taskId: input.taskId,
+          colaboradorId,
+          role: role as any,
+          assignedById: ctx.session.user.id,
+        },
+        update: {}, // Already assigned, no-op
+      });
+
+      // If no primary set on task, set it
+      if (!task.colaboradorId) {
+        await ctx.db.task.update({
+          where: { id: input.taskId },
+          data: { colaboradorId },
+        });
+      }
+
+      // Notify new assignee
+      const taskFull = await ctx.db.task.findUniqueOrThrow({
+        where: { id: input.taskId },
+        include: {
+          service: { select: { name: true } },
+          client: { select: { userId: true } },
+        },
+      });
+      const colab = await ctx.db.colaboradorProfile.findUnique({
+        where: { id: colaboradorId },
+        select: { userId: true },
+      });
+      if (colab) {
+        const { sendNotification } = await import("../lib/notifications");
+        sendNotification({
+          db: ctx.db,
+          userId: colab.userId,
+          type: "TAREA_RECIBIDA",
+          taskId: input.taskId,
+          data: {
+            taskNumber: String(taskFull.taskNumber),
+            serviceType: taskFull.service.name,
+          },
+        }).catch(() => {});
+      }
+
+      return ctx.db.task.findUniqueOrThrow({
+        where: { id: input.taskId },
+        include: {
+          assignments: {
+            include: { colaborador: { include: { user: { select: { name: true } } } } },
+            orderBy: { role: "asc" },
+          },
+        },
+      });
+    }),
+
+  // Admin: remove a collaborator from a task
+  removeAssignee: adminProcedure
+    .input(
+      z.object({
+        taskId: z.string(),
+        colaboradorId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const assignment = await ctx.db.taskAssignment.findUnique({
+        where: { taskId_colaboradorId: { taskId: input.taskId, colaboradorId: input.colaboradorId } },
+      });
+
+      if (!assignment) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Asignación no encontrada" });
+      }
+
+      await ctx.db.taskAssignment.delete({
+        where: { id: assignment.id },
+      });
+
+      // If the removed was PRIMARY, promote next helper or clear
+      if (assignment.role === "PRIMARY") {
+        const nextHelper = await ctx.db.taskAssignment.findFirst({
+          where: { taskId: input.taskId },
+          orderBy: { assignedAt: "asc" },
+        });
+
+        if (nextHelper) {
+          await ctx.db.$transaction([
+            ctx.db.taskAssignment.update({
+              where: { id: nextHelper.id },
+              data: { role: "PRIMARY" },
+            }),
+            ctx.db.task.update({
+              where: { id: input.taskId },
+              data: { colaboradorId: nextHelper.colaboradorId },
+            }),
+          ]);
+        } else {
+          await ctx.db.task.update({
+            where: { id: input.taskId },
+            data: { colaboradorId: null },
+          });
+        }
+      }
+
+      return ctx.db.task.findUniqueOrThrow({
+        where: { id: input.taskId },
+        include: {
+          assignments: {
+            include: { colaborador: { include: { user: { select: { name: true } } } } },
+            orderBy: { role: "asc" },
+          },
+        },
       });
     }),
 
@@ -714,6 +922,10 @@ export const tasksRouter = router({
             orderBy: { createdAt: "asc" },
           },
           attachments: { orderBy: { createdAt: "desc" } },
+          assignments: {
+            include: { colaborador: { include: { user: { select: { name: true } } } } },
+            orderBy: { role: "asc" },
+          },
         },
       });
 
@@ -725,7 +937,9 @@ export const tasksRouter = router({
         const profile = await ctx.db.colaboradorProfile.findUnique({
           where: { userId: ctx.session.user.id },
         });
+        // Allow access if primary assignee OR in assignments
         if (task.colaboradorId === profile?.id) return task;
+        if (profile && task.assignments.some((a) => a.colaboradorId === profile.id)) return task;
       }
 
       if (role === "CLIENTE") {
@@ -769,6 +983,10 @@ export const tasksRouter = router({
             colaborador: {
               include: { user: { select: { name: true } } },
             },
+            assignments: {
+              include: { colaborador: { include: { user: { select: { name: true } } } } },
+              orderBy: { role: "asc" },
+            },
           },
           orderBy: { createdAt: "asc" },
           skip: (input.page - 1) * input.pageSize,
@@ -795,7 +1013,7 @@ export const tasksRouter = router({
       if (input.category) where.category = input.category;
       if (input.clientId) where.clientId = input.clientId;
 
-      // Colaborador: only assigned tasks
+      // Colaborador: only assigned tasks (primary or helper)
       if (role === "COLABORADOR") {
         const profile = await ctx.db.colaboradorProfile.findUnique({
           where: { userId: ctx.session.user.id },
@@ -803,7 +1021,10 @@ export const tasksRouter = router({
         if (!profile) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Perfil no encontrado" });
         }
-        where.colaboradorId = profile.id;
+        where.OR = [
+          { colaboradorId: profile.id },
+          { assignments: { some: { colaboradorId: profile.id } } },
+        ];
       } else if (role !== "ADMIN") {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
@@ -817,6 +1038,10 @@ export const tasksRouter = router({
           service: { select: { name: true } },
           colaborador: {
             include: { user: { select: { name: true } } },
+          },
+          assignments: {
+            include: { colaborador: { include: { user: { select: { name: true } } } } },
+            orderBy: { role: "asc" },
           },
           _count: { select: { comments: true, attachments: true } },
         },

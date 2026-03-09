@@ -19,6 +19,7 @@ import {
   ArrowLeft,
   Clock,
   User,
+  Users,
   MessageCircle,
   Send,
   FileText,
@@ -33,6 +34,7 @@ import {
   Trash2,
   Paperclip,
   Eye,
+  Star,
 } from "lucide-react";
 import { SlaIndicator } from "@/components/sla-indicator";
 import Link from "next/link";
@@ -316,6 +318,25 @@ export default function EquipoTaskDetailPage() {
                     </span>
                   </div>
                 </div>
+
+                {/* Team assigned */}
+                {(task as any).assignments?.length > 0 && (
+                  <div className="pt-3 border-t">
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      Equipo asignado
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {(task as any).assignments.map((a: any) => (
+                        <div key={a.id} className="flex items-center gap-1.5 text-sm bg-muted/50 px-2 py-1 rounded-md">
+                          <User className="h-3 w-3 text-muted-foreground" />
+                          {a.colaborador.user.name}
+                          {a.role === "PRIMARY" && <Star className="h-3 w-3 text-amber-500" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

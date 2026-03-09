@@ -183,20 +183,33 @@ export async function notifyTaskStatusChange({
     data,
   });
 
-  // If collaborator assigned, notify them too (except for CANCELADA which the client triggers)
-  if (task.colaboradorId && newStatus !== "CANCELADA") {
-    const colab = await db.colaboradorProfile.findUnique({
-      where: { id: task.colaboradorId },
-      select: { userId: true },
+  // Notify all assigned collaborators (except for CANCELADA which the client triggers)
+  if (newStatus !== "CANCELADA") {
+    // Get all assignees from TaskAssignment table
+    const assignments = await db.taskAssignment.findMany({
+      where: { taskId: task.id },
+      include: { colaborador: { select: { userId: true } } },
     });
-    if (colab && colab.userId !== task.client.userId) {
-      await sendNotification({
-        db,
-        userId: colab.userId,
-        type: notifType,
-        taskId: task.id,
-        data,
+
+    const notifiedUserIds = new Set<string>([task.client.userId]); // Don't re-notify client
+
+    for (const assignment of assignments) {
+      const userId = assignment.colaborador.userId;
+      if (!notifiedUserIds.has(userId)) {
+        notifiedUserIds.add(userId);
+        await sendNotification({ db, userId, type: notifType, taskId: task.id, data });
+      }
+    }
+
+    // Also notify the legacy colaboradorId if not already covered by assignments
+    if (task.colaboradorId) {
+      const colab = await db.colaboradorProfile.findUnique({
+        where: { id: task.colaboradorId },
+        select: { userId: true },
       });
+      if (colab && !notifiedUserIds.has(colab.userId)) {
+        await sendNotification({ db, userId: colab.userId, type: notifType, taskId: task.id, data });
+      }
     }
   }
 }
@@ -226,25 +239,36 @@ export async function notifyNewComment({
   };
 
   // Notify participants who are NOT the comment author
-  const recipients: string[] = [];
+  const recipientSet = new Set<string>();
 
   // Client
   if (task.client.userId !== commentAuthorId) {
-    recipients.push(task.client.userId);
+    recipientSet.add(task.client.userId);
   }
 
-  // Collaborator
+  // All assigned collaborators from TaskAssignment
+  const assignments = await db.taskAssignment.findMany({
+    where: { taskId: task.id },
+    include: { colaborador: { select: { userId: true } } },
+  });
+  for (const assignment of assignments) {
+    if (assignment.colaborador.userId !== commentAuthorId) {
+      recipientSet.add(assignment.colaborador.userId);
+    }
+  }
+
+  // Legacy: primary collaborator (in case not in assignments)
   if (task.colaboradorId) {
     const colab = await db.colaboradorProfile.findUnique({
       where: { id: task.colaboradorId },
       select: { userId: true },
     });
-    if (colab && colab.userId !== commentAuthorId && !recipients.includes(colab.userId)) {
-      recipients.push(colab.userId);
+    if (colab && colab.userId !== commentAuthorId) {
+      recipientSet.add(colab.userId);
     }
   }
 
-  for (const userId of recipients) {
+  for (const userId of recipientSet) {
     await sendNotification({
       db,
       userId,

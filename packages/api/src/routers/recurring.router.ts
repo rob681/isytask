@@ -254,6 +254,12 @@ export const recurringRouter = router({
                 note: "Tarea creada automáticamente (recurrente)",
               },
             },
+            // Dual-write: create TaskAssignment for primary collaborator
+            ...(autoColaboradorId && {
+              assignments: {
+                create: { colaboradorId: autoColaboradorId, role: "PRIMARY" },
+              },
+            }),
           },
           include: {
             service: { select: { name: true } },

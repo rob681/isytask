@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   Clock,
   User,
+  Users,
   MessageCircle,
   Send,
   FileText,
@@ -35,6 +36,8 @@ import {
   Trash2,
   Paperclip,
   Eye,
+  Star,
+  X,
 } from "lucide-react";
 import { SlaIndicator } from "@/components/sla-indicator";
 import Link from "next/link";
@@ -116,6 +119,19 @@ export default function AdminTaskDetailPage() {
     onSuccess: () => {
       utils.tasks.getById.invalidate({ id: taskId });
       setSelectedColaboradorId("");
+    },
+  });
+
+  const addAssignee = trpc.tasks.addAssignee.useMutation({
+    onSuccess: () => {
+      utils.tasks.getById.invalidate({ id: taskId });
+      setSelectedColaboradorId("");
+    },
+  });
+
+  const removeAssignee = trpc.tasks.removeAssignee.useMutation({
+    onSuccess: () => {
+      utils.tasks.getById.invalidate({ id: taskId });
     },
   });
 
@@ -243,28 +259,63 @@ export default function AdminTaskDetailPage() {
             {/* Assign + Status */}
             <Card className="border-primary/30">
               <CardContent className="pt-6 space-y-4">
-                {/* Assign */}
+                {/* Team assignments */}
                 <div>
                   <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-                    <UserPlus className="h-4 w-4" />
-                    Asignar encargado
+                    <Users className="h-4 w-4" />
+                    Equipo asignado
                   </h4>
+
+                  {/* Current assignees list */}
+                  {(task as any).assignments?.length > 0 ? (
+                    <div className="space-y-1 mb-3">
+                      {(task as any).assignments.map((a: any) => (
+                        <div
+                          key={a.id}
+                          className="flex items-center justify-between p-2 rounded-md bg-muted/50 group"
+                        >
+                          <div className="flex items-center gap-2">
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-sm">{a.colaborador.user.name}</span>
+                            {a.role === "PRIMARY" ? (
+                              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                                <Star className="h-3 w-3 mr-0.5" />
+                                Principal
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                Ayudante
+                              </Badge>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => removeAssignee.mutate({ taskId: task.id, colaboradorId: a.colaboradorId })}
+                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                            title="Quitar"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mb-3">Sin asignar</p>
+                  )}
+
+                  {/* Add new assignee */}
                   <div className="flex gap-2">
                     <select
                       className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                       value={selectedColaboradorId}
                       onChange={(e) => setSelectedColaboradorId(e.target.value)}
                     >
-                      <option value="">
-                        {task.colaborador
-                          ? `Actual: ${task.colaborador.user.name}`
-                          : "Seleccionar encargado"}
-                      </option>
+                      <option value="">Agregar colaborador...</option>
                       <option value={`user:${(session?.user as any)?.id}`}>
-                        Yo mismo (Admin)
+                        ★ Yo mismo ({session?.user?.name ?? "Admin"})
                       </option>
                       {teamMembers?.users
                         .filter((u) => u.colaboradorProfile)
+                        .filter((u) => !(task as any).assignments?.some((a: any) => a.colaboradorId === u.colaboradorProfile!.id))
                         .map((u) => (
                           <option key={u.colaboradorProfile!.id} value={u.colaboradorProfile!.id}>
                             {u.name}
@@ -273,22 +324,22 @@ export default function AdminTaskDetailPage() {
                     </select>
                     <Button
                       size="sm"
-                      disabled={!selectedColaboradorId || assignTask.isLoading}
+                      disabled={!selectedColaboradorId || addAssignee.isLoading}
                       onClick={() => {
                         if (selectedColaboradorId.startsWith("user:")) {
-                          assignTask.mutate({
+                          addAssignee.mutate({
                             taskId: task.id,
                             userId: selectedColaboradorId.replace("user:", ""),
                           });
                         } else {
-                          assignTask.mutate({
+                          addAssignee.mutate({
                             taskId: task.id,
                             colaboradorId: selectedColaboradorId,
                           });
                         }
                       }}
                     >
-                      Asignar
+                      <UserPlus className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -364,12 +415,24 @@ export default function AdminTaskDetailPage() {
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">
-                      Encargado
+                      Equipo
                     </h4>
-                    <span className="text-sm flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      {task.colaborador?.user.name ?? "Sin asignar"}
-                    </span>
+                    {(task as any).assignments?.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {(task as any).assignments.map((a: any) => (
+                          <span key={a.id} className="text-sm flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {a.colaborador.user.name}
+                            {a.role === "PRIMARY" && <Star className="h-3 w-3 text-amber-500" />}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        {task.colaborador?.user.name ?? "Sin asignar"}
+                      </span>
+                    )}
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">

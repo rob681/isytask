@@ -62,6 +62,11 @@ enum NotificationType {
   SLA_ALERTA
 }
 
+enum TaskAssignmentRole {
+  PRIMARY
+  HELPER
+}
+
 enum FieldType {
   TEXT
   TEXTAREA
@@ -143,6 +148,7 @@ model ColaboradorProfile {
   updatedAt   DateTime @updatedAt
 
   assignedTasks    Task[]
+  taskAssignments  TaskAssignment[]
   assignedClients  ColaboradorClientAssignment[]
   recurringTasks   RecurringTask[] @relation("RecurringTaskColaborador")
 
@@ -260,6 +266,7 @@ model Task {
   comments    TaskComment[]
   statusLog   TaskStatusLog[]
   attachments TaskAttachment[]
+  assignments TaskAssignment[]
 
   @@index([clientId, status])
   @@index([colaboradorId, status])
@@ -446,4 +453,23 @@ model Token {
   @@index([token, type])
   @@index([userId])
   @@map("tokens")
+}
+
+// ──────────────────────────────────────────────
+// TASK ASSIGNMENTS (multi-assignment)
+// ──────────────────────────────────────────────
+
+model TaskAssignment {
+  id            String              @id @default(cuid())
+  taskId        String
+  task          Task                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  colaboradorId String
+  colaborador   ColaboradorProfile  @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  role          TaskAssignmentRole  @default(HELPER)
+  assignedAt    DateTime            @default(now())
+  assignedById  String?
+
+  @@unique([taskId, colaboradorId])
+  @@index([colaboradorId])
+  @@map("task_assignments")
 }

@@ -123,6 +123,7 @@ export const adminCreateTaskSchema = createTaskSchema.extend({
   clientId: z.string().min(1, "Cliente requerido"),
   colaboradorId: z.string().optional(),
   assignToUserId: z.string().optional(),
+  additionalAssignees: z.array(z.string()).optional(),
 });
 
 export const updateTaskStatusSchema = z.object({

@@ -243,17 +243,25 @@ export const metricsRouter = router({
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+      // OR pattern: count tasks where user is primary OR helper
+      const myTasksWhere = {
+        OR: [
+          { colaboradorId: colab.id },
+          { assignments: { some: { colaboradorId: colab.id } } },
+        ],
+      };
+
       const [totalAssigned, active, inReview, completedThisMonth, completedTasks] = await Promise.all([
-        ctx.db.task.count({ where: { colaboradorId: colab.id } }),
+        ctx.db.task.count({ where: myTasksWhere }),
         ctx.db.task.count({
-          where: { colaboradorId: colab.id, status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA"] } },
+          where: { ...myTasksWhere, status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA"] } },
         }),
         ctx.db.task.count({
-          where: { colaboradorId: colab.id, status: "REVISION" },
+          where: { ...myTasksWhere, status: "REVISION" },
         }),
         ctx.db.task.count({
           where: {
-            colaboradorId: colab.id,
+            ...myTasksWhere,
             status: "FINALIZADA",
             completedAt: { gte: startOfMonth },
           },
@@ -261,7 +269,7 @@ export const metricsRouter = router({
         // For avg completion time calc
         ctx.db.task.findMany({
           where: {
-            colaboradorId: colab.id,
+            ...myTasksWhere,
             status: "FINALIZADA",
             startedAt: { not: null },
             completedAt: { not: null },
@@ -291,9 +299,16 @@ export const metricsRouter = router({
       const colab = await ctx.db.colaboradorProfile.findUnique({ where: { userId } });
       if (!colab) return [];
 
+      const myTasksWhere = {
+        OR: [
+          { colaboradorId: colab.id },
+          { assignments: { some: { colaboradorId: colab.id } } },
+        ],
+      };
+
       const results = await ctx.db.task.groupBy({
         by: ["status"],
-        where: { colaboradorId: colab.id },
+        where: myTasksWhere,
         _count: { id: true },
       });
       return results.map((r) => ({ status: r.status, count: r._count.id }));
@@ -305,9 +320,16 @@ export const metricsRouter = router({
       const colab = await ctx.db.colaboradorProfile.findUnique({ where: { userId } });
       if (!colab) return [];
 
+      const myTasksWhere = {
+        OR: [
+          { colaboradorId: colab.id },
+          { assignments: { some: { colaboradorId: colab.id } } },
+        ],
+      };
+
       const results = await ctx.db.task.groupBy({
         by: ["clientId"],
-        where: { colaboradorId: colab.id },
+        where: myTasksWhere,
         _count: { id: true },
       });
 
@@ -335,7 +357,12 @@ export const metricsRouter = router({
 
       return ctx.db.task.findMany({
         take: 10,
-        where: { colaboradorId: colab.id },
+        where: {
+          OR: [
+            { colaboradorId: colab.id },
+            { assignments: { some: { colaboradorId: colab.id } } },
+          ],
+        },
         orderBy: { updatedAt: "desc" },
         select: {
           id: true,
@@ -360,7 +387,10 @@ export const metricsRouter = router({
       const year = new Date().getFullYear();
       const tasks = await ctx.db.task.findMany({
         where: {
-          colaboradorId: colab.id,
+          OR: [
+            { colaboradorId: colab.id },
+            { assignments: { some: { colaboradorId: colab.id } } },
+          ],
           status: "FINALIZADA",
           completedAt: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) },
         },

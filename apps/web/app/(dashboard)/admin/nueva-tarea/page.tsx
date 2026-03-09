@@ -8,14 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc/client";
-import { Clock, UserCircle, Users, Info } from "lucide-react";
+import { Clock, UserCircle, Users, Info, X, Star, UserPlus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function AdminNuevaTareaPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [selectedClientId, setSelectedClientId] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
-  const [selectedColaboradorId, setSelectedColaboradorId] = useState("");
+  const [selectedAssignees, setSelectedAssignees] = useState<Array<{ id: string; name: string; isUser?: boolean }>>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<"URGENTE" | "NORMAL" | "LARGO_PLAZO">("NORMAL");
@@ -51,11 +52,33 @@ export default function AdminNuevaTareaPage() {
     setFormData((prev) => ({ ...prev, [fieldName]: value }));
   };
 
+  const handleAddAssignee = (value: string) => {
+    if (!value) return;
+    const isUser = value.startsWith("user:");
+    const name = isUser
+      ? (session?.user?.name ?? "Yo")
+      : colaboradores.find((c) => c.colaboradorProfile!.id === value)?.name ?? "Colaborador";
+    if (selectedAssignees.some((a) => a.id === value)) return;
+    setSelectedAssignees((prev) => [...prev, { id: value, name, isUser }]);
+  };
+
+  const handleRemoveAssignee = (id: string) => {
+    setSelectedAssignees((prev) => prev.filter((a) => a.id !== id));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClientId || !selectedServiceId || !title) return;
 
-    const isUserAssign = selectedColaboradorId.startsWith("user:");
+    // First assignee is primary, rest are helpers
+    const primary = selectedAssignees[0];
+    const helpers = selectedAssignees.slice(1);
+
+    const primaryIsUser = primary?.isUser;
+    const helperColabIds = helpers
+      .filter((h) => !h.isUser)
+      .map((h) => h.id);
+
     createMutation.mutate({
       clientId: selectedClientId,
       serviceId: selectedServiceId,
@@ -63,8 +86,9 @@ export default function AdminNuevaTareaPage() {
       description,
       category,
       formData,
-      ...(selectedColaboradorId && !isUserAssign && { colaboradorId: selectedColaboradorId }),
-      ...(isUserAssign && { assignToUserId: selectedColaboradorId.replace("user:", "") }),
+      ...(primary && !primaryIsUser && { colaboradorId: primary.id }),
+      ...(primary && primaryIsUser && { assignToUserId: primary.id.replace("user:", "") }),
+      ...(helperColabIds.length > 0 && { additionalAssignees: helperColabIds }),
     });
   };
 
@@ -137,32 +161,72 @@ export default function AdminNuevaTareaPage() {
                 )}
               </div>
 
-              {/* Collaborator (optional) */}
+              {/* Collaborators (optional, multi-select) */}
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-1">
                   <Users className="h-4 w-4" />
-                  Asignar a colaborador
+                  Asignar colaboradores
                   <span className="text-muted-foreground font-normal">(opcional)</span>
                 </label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={selectedColaboradorId}
-                  onChange={(e) => setSelectedColaboradorId(e.target.value)}
-                >
-                  <option value="">Auto-asignar</option>
-                  {(session?.user as any)?.id && (
-                    <option value={`user:${(session?.user as any).id}`}>
-                      ★ Asignarme a mí ({session?.user?.name ?? "Yo"})
-                    </option>
-                  )}
-                  {colaboradores.map((c) => (
-                    <option key={c.colaboradorProfile!.id} value={c.colaboradorProfile!.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+
+                {/* Selected assignees */}
+                {selectedAssignees.length > 0 && (
+                  <div className="space-y-1">
+                    {selectedAssignees.map((a, i) => (
+                      <div
+                        key={a.id}
+                        className="flex items-center justify-between p-2 rounded-md bg-muted/50"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{a.name}</span>
+                          {i === 0 ? (
+                            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                              <Star className="h-3 w-3 mr-0.5" />
+                              Principal
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">Ayudante</Badge>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAssignee(a.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add assignee dropdown */}
+                <div className="flex gap-2">
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value=""
+                    onChange={(e) => {
+                      handleAddAssignee(e.target.value);
+                      e.target.value = "";
+                    }}
+                  >
+                    <option value="">{selectedAssignees.length === 0 ? "Auto-asignar (o seleccionar)" : "Agregar colaborador..."}</option>
+                    {(session?.user as any)?.id && !selectedAssignees.some((a) => a.id === `user:${(session?.user as any).id}`) && (
+                      <option value={`user:${(session?.user as any).id}`}>
+                        ★ Asignarme a mí ({session?.user?.name ?? "Yo"})
+                      </option>
+                    )}
+                    {colaboradores
+                      .filter((c) => !selectedAssignees.some((a) => a.id === c.colaboradorProfile!.id))
+                      .map((c) => (
+                        <option key={c.colaboradorProfile!.id} value={c.colaboradorProfile!.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Si no se selecciona, se asignará automáticamente al colaborador del cliente
+                  El primero seleccionado será el encargado principal. Si no se selecciona ninguno, se auto-asigna.
                 </p>
               </div>
 
