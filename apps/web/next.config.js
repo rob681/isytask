@@ -5,6 +5,9 @@ const nextConfig = {
   transpilePackages: ["@isytask/api", "@isytask/db", "@isytask/shared"],
   experimental: {
     outputFileTracingRoot: path.join(__dirname, "../../"),
+    outputFileTracingIncludes: {
+      "/**": ["packages/db/generated/client/*.node"],
+    },
   },
   images: {
     remotePatterns: [
