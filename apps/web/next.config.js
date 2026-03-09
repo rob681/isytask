@@ -6,7 +6,7 @@ const nextConfig = {
   experimental: {
     outputFileTracingRoot: path.join(__dirname, "../../"),
     outputFileTracingIncludes: {
-      "/**": ["packages/db/generated/client/*.node"],
+      "/**": ["apps/web/generated/prisma/*.node"],
     },
   },
   images: {

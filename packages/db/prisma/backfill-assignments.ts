@@ -4,7 +4,7 @@
  *
  * Usage: pnpm --filter @isytask/db exec tsx prisma/backfill-assignments.ts
  */
-import { PrismaClient } from "../generated/client";
+import { PrismaClient } from "../../../apps/web/generated/prisma";
 
 const db = new PrismaClient();
 
