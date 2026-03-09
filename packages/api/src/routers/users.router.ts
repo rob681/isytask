@@ -95,7 +95,6 @@ export const usersRouter = router({
               logoUrl: true,
               monthlyTaskLimit: true,
               revisionLimitPerTask: true,
-              googleDriveFolderId: true,
             },
           },
           colaboradorProfile: {

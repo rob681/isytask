@@ -1,8 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
 import { NextRequest, NextResponse } from "next/server";
+import { uploadFile } from "@isytask/api";
 
 const MAX_SIZE = 2 * 1024 * 1024; // 2MB
 const ALLOWED_TYPES = [
@@ -53,18 +52,14 @@ export async function POST(req: NextRequest) {
     const ext = EXT_MAP[file.type] || "png";
     const userId = (session.user as any).id;
     const timestamp = Date.now();
-    const fileName = `${type}-${userId}-${timestamp}.${ext}`;
-
-    const uploadsDir = join(process.cwd(), "public", "uploads");
-    await mkdir(uploadsDir, { recursive: true });
+    const path = `${type}/${userId}-${timestamp}.${ext}`;
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(join(uploadsDir, fileName), buffer);
 
-    const url = `/uploads/${fileName}`;
+    const { url } = await uploadFile("images", path, buffer, file.type);
 
-    return NextResponse.json({ url, fileName });
+    return NextResponse.json({ url, fileName: `${type}-${userId}-${timestamp}.${ext}` });
   } catch (error) {
     console.error("Upload error:", error);
     return NextResponse.json(

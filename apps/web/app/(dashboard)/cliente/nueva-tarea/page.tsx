@@ -20,7 +20,7 @@ export default function NuevaTareaPage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<
-    Array<{ url: string; fileName: string; fileSize: number; mimeType: string }>
+    Array<{ url: string; storagePath: string; fileName: string; fileSize: number; mimeType: string }>
   >([]);
   const [uploading, setUploading] = useState(false);
 
@@ -52,6 +52,7 @@ export default function NuevaTareaPage() {
                 fileSize: file.fileSize,
                 mimeType: file.mimeType,
                 url: file.url,
+                storagePath: file.storagePath,
                 isDeliverable: false,
               })
             )
@@ -111,6 +112,7 @@ export default function NuevaTareaPage() {
             ...prev,
             {
               url: data.url,
+              storagePath: data.storagePath,
               fileName: data.fileName,
               fileSize: data.fileSize,
               mimeType: data.mimeType,

@@ -180,6 +180,7 @@ export default function AdminTaskDetailPage() {
           fileSize: data.fileSize,
           mimeType: data.mimeType,
           url: data.url,
+          storagePath: data.storagePath,
           isDeliverable: false,
         });
       }
@@ -654,7 +655,7 @@ export default function AdminTaskDetailPage() {
                       >
                         <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         <a
-                          href={att.googleDriveUrl ?? "#"}
+                          href={att.fileUrl ?? "#"}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="truncate flex-1 hover:underline"

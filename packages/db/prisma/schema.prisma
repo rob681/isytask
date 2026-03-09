@@ -122,7 +122,6 @@ model ClientProfile {
   planDescription      String?
   monthlyTaskLimit     Int      @default(10)
   revisionLimitPerTask Int      @default(3)
-  googleDriveFolderId  String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -258,7 +257,6 @@ model Task {
   revisionsLimit Int
 
   formData       Json?
-  driveFolderId  String?
 
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -319,17 +317,17 @@ model TaskComment {
 // ──────────────────────────────────────────────
 
 model TaskAttachment {
-  id             String   @id @default(cuid())
-  taskId         String
-  task           Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  fileName       String
-  fileSize       Int
-  mimeType       String
-  googleDriveId  String
-  googleDriveUrl String
-  uploadedById   String
-  isDeliverable  Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  id            String   @id @default(cuid())
+  taskId        String
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fileName      String
+  fileSize      Int
+  mimeType      String
+  storagePath   String   // Supabase Storage path: "bucket/folder/file"
+  fileUrl       String   // Public URL from Supabase Storage
+  uploadedById  String
+  isDeliverable Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
   @@index([taskId])
   @@map("task_attachments")

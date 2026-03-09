@@ -15,6 +15,7 @@ import {
 } from "@isytask/shared";
 import { adminOrPermissionProcedure } from "../trpc";
 import { notifyTaskStatusChange } from "../lib/notifications";
+import { deleteFile as deleteStorageFile } from "../lib/supabase-storage";
 
 function calculateElapsedHours(startedAt: Date | null): number {
   if (!startedAt) return 0;
@@ -1130,6 +1131,7 @@ export const tasksRouter = router({
         fileSize: z.number(),
         mimeType: z.string(),
         url: z.string(),
+        storagePath: z.string(),
         isDeliverable: z.boolean().default(false),
       })
     )
@@ -1155,8 +1157,8 @@ export const tasksRouter = router({
           fileName: input.fileName,
           fileSize: input.fileSize,
           mimeType: input.mimeType,
-          googleDriveId: `local-${Date.now()}`,
-          googleDriveUrl: input.url,
+          storagePath: input.storagePath,
+          fileUrl: input.url,
           uploadedById: ctx.session.user.id,
           isDeliverable: input.isDeliverable,
         },
@@ -1178,6 +1180,11 @@ export const tasksRouter = router({
       ) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
+
+      // Delete from Supabase Storage (fire-and-forget)
+      deleteStorageFile(attachment.storagePath).catch((err) => {
+        console.error("[Storage] Failed to delete file:", err);
+      });
 
       return ctx.db.taskAttachment.delete({
         where: { id: input.attachmentId },

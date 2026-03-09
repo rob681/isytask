@@ -10,6 +10,7 @@
   "dependencies": {
     "@isytask/db": "workspace:*",
     "@isytask/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.98.0",
     "@trpc/server": "^10.45.0",
     "bcryptjs": "^2.4.3",
     "resend": "^6.9.3",

@@ -107,6 +107,7 @@ export default function ClienteTaskDetailPage() {
           fileSize: data.fileSize,
           mimeType: data.mimeType,
           url: data.url,
+          storagePath: data.storagePath,
           isDeliverable: false,
         });
       }
@@ -516,7 +517,7 @@ export default function ClienteTaskDetailPage() {
                     {task.attachments.map((att) => (
                       <a
                         key={att.id}
-                        href={att.googleDriveUrl ?? "#"}
+                        href={att.fileUrl ?? "#"}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 p-2 rounded hover:bg-muted text-sm"

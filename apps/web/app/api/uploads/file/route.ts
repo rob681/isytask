@@ -1,8 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
 import { NextRequest, NextResponse } from "next/server";
+import { uploadFile } from "@isytask/api";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -15,6 +14,7 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
+    const taskId = (formData.get("taskId") as string) || "temp";
 
     if (!file) {
       return NextResponse.json(
@@ -33,19 +33,21 @@ export async function POST(req: NextRequest) {
     const userId = (session.user as any).id;
     const timestamp = Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const fileName = `${userId}-${timestamp}-${safeName}`;
-
-    const uploadsDir = join(process.cwd(), "public", "uploads", "attachments");
-    await mkdir(uploadsDir, { recursive: true });
+    const path = `${taskId}/${userId}-${timestamp}-${safeName}`;
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(join(uploadsDir, fileName), buffer);
 
-    const url = `/uploads/attachments/${fileName}`;
+    const { storagePath, url } = await uploadFile(
+      "attachments",
+      path,
+      buffer,
+      file.type || "application/octet-stream"
+    );
 
     return NextResponse.json({
       url,
+      storagePath,
       fileName: file.name,
       fileSize: file.size,
       mimeType: file.type,
