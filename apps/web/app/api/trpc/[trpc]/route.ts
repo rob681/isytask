@@ -26,6 +26,9 @@ const handler = (req: Request) =>
           : null
       );
     },
+    onError: ({ path, error }) => {
+      console.error(`[tRPC] ${path ?? "unknown"}: ${error.message}`);
+    },
   });
 
 export { handler as GET, handler as POST };

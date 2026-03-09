@@ -43,6 +43,7 @@ const adminNav: NavItem[] = [
   { label: "Clientes", href: "/admin/clientes", icon: <UserCircle className="h-5 w-5" />, permission: "manage_clients" },
   { label: "Servicios", href: "/admin/servicios", icon: <Briefcase className="h-5 w-5" />, permission: "manage_services" },
   { label: "Tareas", href: "/admin/tareas", icon: <ListTodo className="h-5 w-5" />, permission: "manage_tasks" },
+  { label: "Nueva Tarea", href: "/admin/nueva-tarea", icon: <PlusCircle className="h-5 w-5" />, permission: "manage_tasks" },
   { label: "Recurrentes", href: "/admin/tareas-recurrentes", icon: <RefreshCw className="h-5 w-5" />, permission: "manage_tasks" },
   { label: "Plantillas", href: "/admin/plantillas", icon: <FileText className="h-5 w-5" />, permission: "manage_services" },
   { label: "Rentabilidad", href: "/admin/reportes", icon: <BarChart3 className="h-5 w-5" />, permission: "dashboard" },

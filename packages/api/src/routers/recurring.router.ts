@@ -68,6 +68,7 @@ export const recurringRouter = router({
         clientId: z.string(),
         serviceId: z.string(),
         colaboradorId: z.string().optional(),
+        assignToUserId: z.string().optional(),
         title: z.string().min(1, "Título requerido"),
         description: z.string().optional(),
         category: z.enum(["URGENTE", "NORMAL", "LARGO_PLAZO"]).default("NORMAL"),
@@ -86,6 +87,20 @@ export const recurringRouter = router({
         where: { id: input.serviceId },
       });
 
+      // Resolve collaborator: explicit profile ID, self-assign by userId, or null
+      let colaboradorId = input.colaboradorId ?? null;
+      if (!colaboradorId && input.assignToUserId) {
+        let profile = await ctx.db.colaboradorProfile.findUnique({
+          where: { userId: input.assignToUserId },
+        });
+        if (!profile) {
+          profile = await ctx.db.colaboradorProfile.create({
+            data: { userId: input.assignToUserId },
+          });
+        }
+        colaboradorId = profile.id;
+      }
+
       const nextRunAt = calculateNextRunAt(
         input.recurrenceType,
         input.recurrenceDay ?? null,
@@ -96,7 +111,7 @@ export const recurringRouter = router({
         data: {
           clientId: input.clientId,
           serviceId: input.serviceId,
-          colaboradorId: input.colaboradorId ?? null,
+          colaboradorId,
           title: input.title,
           description: input.description,
           category: input.category,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,7 @@ const DAY_OF_WEEK_LABELS = [
 ];
 
 export default function TareasRecurrentesPage() {
+  const { data: session } = useSession();
   const [showForm, setShowForm] = useState(false);
   const utils = trpc.useUtils();
 
@@ -99,10 +101,12 @@ export default function TareasRecurrentesPage() {
 
   const handleCreate = () => {
     const { colaboradorId, ...rest } = formData;
+    const isSelfAssign = colaboradorId.startsWith("self:");
     createMutation.mutate({
       ...rest,
       recurrenceDay: formData.recurrenceType === "DAILY" ? undefined : formData.recurrenceDay,
-      ...(colaboradorId && { colaboradorId }),
+      ...(colaboradorId && !isSelfAssign && { colaboradorId }),
+      ...(isSelfAssign && { assignToUserId: colaboradorId.replace("self:", "") }),
     });
   };
 
@@ -192,6 +196,11 @@ export default function TareasRecurrentesPage() {
                     }
                   >
                     <option value="">Auto-asignar según carga</option>
+                    {(session?.user as any)?.id && (
+                      <option value={`self:${(session?.user as any).id}`}>
+                        ★ Asignarme a mí ({session?.user?.name ?? "Yo"})
+                      </option>
+                    )}
                     {teamMembers?.users
                       .filter((u) => u.colaboradorProfile)
                       .map((u) => (

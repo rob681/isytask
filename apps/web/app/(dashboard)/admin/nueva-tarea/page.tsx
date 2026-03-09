@@ -152,7 +152,7 @@ export default function AdminNuevaTareaPage() {
                   <option value="">Auto-asignar</option>
                   {(session?.user as any)?.id && (
                     <option value={`user:${(session?.user as any).id}`}>
-                      Yo mismo (Admin)
+                      ★ Asignarme a mí ({session?.user?.name ?? "Yo"})
                     </option>
                   )}
                   {colaboradores.map((c) => (
