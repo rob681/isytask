@@ -76,7 +76,39 @@ export function KanbanBoard({ showFilters = true }: KanbanBoardProps) {
   );
 
   const updateStatusMutation = trpc.tasks.updateStatusQuick.useMutation({
-    onSuccess: () => {
+    // Optimistic update — move card instantly, revert on error
+    onMutate: async ({ taskId, newStatus }) => {
+      // Cancel outgoing refetches so they don't overwrite our optimistic update
+      await utils.tasks.listForKanban.cancel();
+
+      // Snapshot current data for rollback
+      const previous = utils.tasks.listForKanban.getData({
+        category: categoryFilter as any,
+        clientId: clientFilter,
+      });
+
+      // Optimistically update the cache
+      utils.tasks.listForKanban.setData(
+        { category: categoryFilter as any, clientId: clientFilter },
+        (old) =>
+          old?.map((t) =>
+            t.id === taskId ? { ...t, status: newStatus } : t
+          )
+      );
+
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      // Rollback on error
+      if (context?.previous) {
+        utils.tasks.listForKanban.setData(
+          { category: categoryFilter as any, clientId: clientFilter },
+          context.previous
+        );
+      }
+    },
+    onSettled: () => {
+      // Always refetch to sync with server
       utils.tasks.listForKanban.invalidate();
     },
   });
