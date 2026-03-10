@@ -14,7 +14,6 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -55,7 +54,12 @@ export default function LoginPage() {
             <img
               src="/isytask-logo.svg"
               alt="Isytask"
-              className="h-10 object-contain"
+              className="h-10 object-contain dark:hidden"
+            />
+            <img
+              src="/isytask-logo-white.svg"
+              alt="Isytask"
+              className="h-10 object-contain hidden dark:block"
             />
           </div>
           <CardDescription className="text-sm">

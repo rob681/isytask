@@ -247,8 +247,13 @@ export async function streamChatCompletion({
 
               try {
                 const chunk = JSON.parse(dataStr);
-                const delta = chunk.choices?.[0]?.delta;
+
+                const choice = chunk.choices?.[0];
+                const delta = choice?.delta;
                 if (!delta) continue;
+
+                // Skip finish chunks that carry no new delta content
+                if (choice?.finish_reason && !delta.content && !delta.tool_calls) continue;
 
                 // Text content
                 if (delta.content) {

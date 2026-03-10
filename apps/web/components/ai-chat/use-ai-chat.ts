@@ -141,6 +141,25 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
           }
         }
 
+        // Deduplicate: if the response text is exactly repeated, trim to one copy
+        const trimmed = assistantContent.trim();
+        if (trimmed.length > 20) {
+          const half = Math.floor(trimmed.length / 2);
+          const firstHalf = trimmed.slice(0, half);
+          const secondHalf = trimmed.slice(half);
+          if (firstHalf === secondHalf) {
+            assistantContent = firstHalf;
+            setMessages((prev) => {
+              const copy = [...prev];
+              copy[copy.length - 1] = {
+                role: "assistant",
+                content: assistantContent,
+              };
+              return copy;
+            });
+          }
+        }
+
         // If the AI only called a tool (no text), show a confirmation message
         if (hadToolCall && !assistantContent.trim()) {
           assistantContent = "He actualizado los campos del formulario con la información proporcionada. ¿Hay algo más que necesites ajustar?";

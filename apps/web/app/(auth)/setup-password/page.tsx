@@ -140,7 +140,8 @@ function SetupPasswordPage() {
       <Card className="w-full max-w-md relative glass-card shadow-soft">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex justify-center">
-            <img src="/isytask-logo.svg" alt="Isytask" className="h-10 object-contain" />
+            <img src="/isytask-logo.svg" alt="Isytask" className="h-10 object-contain dark:hidden" />
+            <img src="/isytask-logo-white.svg" alt="Isytask" className="h-10 object-contain hidden dark:block" />
           </div>
           <CardDescription>
             Hola <strong>{tokenData?.userName}</strong>, configura tu contraseña para acceder a Isytask.

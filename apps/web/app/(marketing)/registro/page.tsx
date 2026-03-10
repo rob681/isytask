@@ -78,7 +78,12 @@ function RegistroForm() {
           <img
             src="/isytask-logo.svg"
             alt="Isytask"
-            className="h-10 object-contain"
+            className="h-10 object-contain dark:hidden"
+          />
+          <img
+            src="/isytask-logo-white.svg"
+            alt="Isytask"
+            className="h-10 object-contain hidden dark:block"
           />
         </Link>
         <div>

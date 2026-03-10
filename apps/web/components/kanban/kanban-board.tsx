@@ -9,6 +9,7 @@ import {
   closestCorners,
   KeyboardSensor,
   PointerSensor,
+  MeasuringStrategy,
   useSensor,
   useSensors,
   type DragStartEvent,
@@ -242,6 +243,9 @@ export function KanbanBoard({ showFilters = true }: KanbanBoardProps) {
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          measuring={{
+            draggable: { measure: (element) => element.getBoundingClientRect() },
+          }}
         >
           <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "60vh" }}>
             {displayColumns.map((status) => {
@@ -276,7 +280,7 @@ export function KanbanBoard({ showFilters = true }: KanbanBoardProps) {
             })}
           </div>
 
-          <DragOverlay>
+          <DragOverlay dropAnimation={null}>
             {activeTask ? (
               <KanbanCard task={activeTask} isDragOverlay />
             ) : null}

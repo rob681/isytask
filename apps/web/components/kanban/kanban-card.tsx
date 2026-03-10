@@ -52,7 +52,7 @@ export function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardProps) {
         "rounded-lg border bg-card p-3 shadow-sm transition-colors",
         !isDragOverlay && "cursor-grab active:cursor-grabbing hover:border-primary/40",
         isDragging && "opacity-30",
-        isDragOverlay && "shadow-xl rotate-[2deg] scale-105 border-primary/50 ring-2 ring-primary/20"
+        isDragOverlay && "shadow-xl border-primary/50 ring-2 ring-primary/20"
       )}
     >
       {/* Header */}
