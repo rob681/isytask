@@ -14,6 +14,7 @@ import { recurringRouter } from "./routers/recurring.router";
 import { auditRouter } from "./routers/audit.router";
 import { templatesRouter } from "./routers/templates.router";
 import { agenciesRouter } from "./routers/agencies.router";
+import { platformRouter } from "./routers/platform.router";
 
 export const appRouter = router({
   auth: authRouter,
@@ -31,6 +32,7 @@ export const appRouter = router({
   audit: auditRouter,
   templates: templatesRouter,
   agencies: agenciesRouter,
+  platform: platformRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -9,7 +9,7 @@ export const createUserSchema = z.object({
   email: z.string().email("Email inválido"),
   name: z.string().min(1, "Nombre requerido"),
   phone: z.string().optional(),
-  role: z.enum(["SUPER_ADMIN", "ADMIN", "COLABORADOR", "CLIENTE"]),
+  role: z.enum(["SUPER_ADMIN", "ADMIN", "COLABORADOR", "CLIENTE", "SOPORTE", "FACTURACION", "VENTAS", "ANALISTA"]),
 });
 
 // Auth flow schemas
@@ -173,6 +173,14 @@ export const registerAgencySchema = z.object({
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Las contrasenas no coinciden",
   path: ["confirmPassword"],
+});
+
+// ── Platform staff management (Super Admin) ──
+
+export const createPlatformStaffSchema = z.object({
+  email: z.string().email("Email invalido"),
+  name: z.string().min(1, "Nombre requerido"),
+  role: z.enum(["SOPORTE", "FACTURACION", "VENTAS", "ANALISTA"]),
 });
 
 // ── Agency management (Super Admin) ──

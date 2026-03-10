@@ -25,6 +25,10 @@ import {
   PieChart,
   Globe,
   Building2,
+  HeadphonesIcon,
+  CreditCard,
+  TrendingUp,
+  Receipt,
 } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
@@ -61,6 +65,33 @@ const colaboradorNav: NavItem[] = [
 const superAdminNav: NavItem[] = [
   { label: "Plataforma", href: "/superadmin", icon: <Globe className="h-5 w-5" /> },
   { label: "Agencias", href: "/superadmin/agencias", icon: <Building2 className="h-5 w-5" /> },
+  { label: "Staff", href: "/superadmin/staff", icon: <Shield className="h-5 w-5" /> },
+  { label: "Soporte", href: "/superadmin/soporte/agencias", icon: <HeadphonesIcon className="h-5 w-5" /> },
+  { label: "Facturacion", href: "/superadmin/facturacion/agencias", icon: <CreditCard className="h-5 w-5" /> },
+  { label: "Ventas", href: "/superadmin/ventas/agencias", icon: <TrendingUp className="h-5 w-5" /> },
+  { label: "Analitica", href: "/superadmin/analista/tendencias", icon: <BarChart3 className="h-5 w-5" /> },
+];
+
+const soporteNav: NavItem[] = [
+  { label: "Dashboard", href: "/superadmin", icon: <HeadphonesIcon className="h-5 w-5" /> },
+  { label: "Agencias", href: "/superadmin/soporte/agencias", icon: <Building2 className="h-5 w-5" /> },
+  { label: "Usuarios", href: "/superadmin/soporte/usuarios", icon: <Users className="h-5 w-5" /> },
+];
+
+const facturacionNav: NavItem[] = [
+  { label: "Dashboard", href: "/superadmin", icon: <CreditCard className="h-5 w-5" /> },
+  { label: "Agencias", href: "/superadmin/facturacion/agencias", icon: <Building2 className="h-5 w-5" /> },
+  { label: "Suscripciones", href: "/superadmin/facturacion/suscripciones", icon: <Receipt className="h-5 w-5" /> },
+];
+
+const ventasNav: NavItem[] = [
+  { label: "Dashboard", href: "/superadmin", icon: <TrendingUp className="h-5 w-5" /> },
+  { label: "Agencias", href: "/superadmin/ventas/agencias", icon: <Building2 className="h-5 w-5" /> },
+];
+
+const analistaNav: NavItem[] = [
+  { label: "Dashboard", href: "/superadmin", icon: <BarChart3 className="h-5 w-5" /> },
+  { label: "Tendencias", href: "/superadmin/analista/tendencias", icon: <Activity className="h-5 w-5" /> },
 ];
 
 const clienteNav: NavItem[] = [
@@ -91,6 +122,14 @@ function useNavItems() {
   let navItems: NavItem[];
   if (role === "SUPER_ADMIN") {
     navItems = superAdminNav;
+  } else if (role === "SOPORTE") {
+    navItems = soporteNav;
+  } else if (role === "FACTURACION") {
+    navItems = facturacionNav;
+  } else if (role === "VENTAS") {
+    navItems = ventasNav;
+  } else if (role === "ANALISTA") {
+    navItems = analistaNav;
   } else if (role === "ADMIN") {
     navItems = adminNav;
   } else if (role === "COLABORADOR") {
@@ -210,13 +249,14 @@ export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: Sid
               </p>
               <div className="flex items-center gap-1 mt-1">
                 <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                  {role === "SUPER_ADMIN"
-                    ? "Super Admin"
-                    : role === "ADMIN"
-                      ? "Administrador"
-                      : role === "COLABORADOR"
-                        ? "Equipo"
-                        : "Cliente"}
+                  {role === "SUPER_ADMIN" ? "Super Admin"
+                    : role === "SOPORTE" ? "Soporte"
+                    : role === "FACTURACION" ? "Facturacion"
+                    : role === "VENTAS" ? "Ventas"
+                    : role === "ANALISTA" ? "Analista"
+                    : role === "ADMIN" ? "Administrador"
+                    : role === "COLABORADOR" ? "Equipo"
+                    : "Cliente"}
                 </span>
                 {hasAdminAccess && (
                   <span className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">

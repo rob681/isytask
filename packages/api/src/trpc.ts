@@ -67,9 +67,8 @@ function requireRole(...roles: Role[]) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "No autenticado" });
     }
     const userRole = ctx.session.user.role as Role;
-    // SUPER_ADMIN hereda acceso de ADMIN
-    const passes = roles.includes(userRole) ||
-      (userRole === "SUPER_ADMIN" && roles.includes("ADMIN" as Role));
+    // SUPER_ADMIN es god-mode: pasa CUALQUIER check de rol
+    const passes = roles.includes(userRole) || userRole === "SUPER_ADMIN";
     if (!passes) {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -123,6 +122,15 @@ export const colaboradorProcedure = t.procedure.use(
   requireRole("COLABORADOR")
 );
 export const clienteProcedure = t.procedure.use(requireRole("CLIENTE"));
+
+// Platform staff procedures (SUPER_ADMIN hereda acceso automáticamente via god-mode)
+export const soporteProcedure = t.procedure.use(requireRole("SOPORTE" as Role));
+export const facturacionProcedure = t.procedure.use(requireRole("FACTURACION" as Role));
+export const ventasProcedure = t.procedure.use(requireRole("VENTAS" as Role));
+export const analistaProcedure = t.procedure.use(requireRole("ANALISTA" as Role));
+export const platformProcedure = t.procedure.use(
+  requireRole("SOPORTE" as Role, "FACTURACION" as Role, "VENTAS" as Role, "ANALISTA" as Role)
+);
 
 /** Create a procedure that allows ADMIN or COLABORADOR with specific permissions */
 export function adminOrPermissionProcedure(...permissions: Permission[]) {

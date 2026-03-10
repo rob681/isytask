@@ -2,6 +2,7 @@ import { Navbar } from "@/components/landing/navbar";
 import { Hero } from "@/components/landing/hero";
 import { Features } from "@/components/landing/features";
 import { UseCases } from "@/components/landing/use-cases";
+import { ClientPortal } from "@/components/landing/client-portal";
 import { Testimonials } from "@/components/landing/testimonials";
 import { Pricing } from "@/components/landing/pricing";
 import { CtaSection } from "@/components/landing/cta-section";
@@ -15,6 +16,7 @@ export default function LandingPage() {
         <Hero />
         <Features />
         <UseCases />
+        <ClientPortal />
         <Testimonials />
         <Pricing />
         <CtaSection />

@@ -1,6 +1,18 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
+const PLATFORM_ROLES = ["SUPER_ADMIN", "SOPORTE", "FACTURACION", "VENTAS", "ANALISTA"];
+
+function getPlatformAllowedPaths(role: string): string[] {
+  switch (role) {
+    case "SOPORTE":     return ["/superadmin/soporte", "/superadmin/agencias"];
+    case "FACTURACION":  return ["/superadmin/facturacion", "/superadmin/agencias"];
+    case "VENTAS":       return ["/superadmin/ventas", "/superadmin/agencias"];
+    case "ANALISTA":     return ["/superadmin/analista"];
+    default:             return [];
+  }
+}
+
 // Map admin routes to required permissions
 const ADMIN_ROUTE_PERMISSIONS: Record<string, string> = {
   "/admin": "dashboard",
@@ -41,6 +53,10 @@ export default withAuth(
       const role = token.role as string;
       switch (role) {
         case "SUPER_ADMIN":
+        case "SOPORTE":
+        case "FACTURACION":
+        case "VENTAS":
+        case "ANALISTA":
           return NextResponse.redirect(new URL("/superadmin", req.url));
         case "ADMIN":
           return NextResponse.redirect(new URL("/admin", req.url));
@@ -65,9 +81,22 @@ export default withAuth(
       return NextResponse.next();
     }
 
-    // Super-admin routes
-    if (path.startsWith("/superadmin") && role !== "SUPER_ADMIN") {
-      return NextResponse.redirect(new URL("/login", req.url));
+    // Platform routes — allow all platform roles
+    if (path.startsWith("/superadmin")) {
+      if (!PLATFORM_ROLES.includes(role)) {
+        return NextResponse.redirect(new URL("/login", req.url));
+      }
+      // Sub-route restrictions for non-SUPER_ADMIN staff
+      if (role !== "SUPER_ADMIN") {
+        const allowedPaths = getPlatformAllowedPaths(role);
+        const isAllowed = allowedPaths.some(
+          (prefix) => path === prefix || path.startsWith(prefix + "/")
+        );
+        // Allow root /superadmin (their dashboard) but restrict sub-sections
+        if (path !== "/superadmin" && !isAllowed) {
+          return NextResponse.redirect(new URL("/superadmin", req.url));
+        }
+      }
     }
 
     // Route protection by role

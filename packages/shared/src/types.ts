@@ -1,4 +1,8 @@
-export type Role = "SUPER_ADMIN" | "ADMIN" | "COLABORADOR" | "CLIENTE";
+export type Role = "SUPER_ADMIN" | "ADMIN" | "COLABORADOR" | "CLIENTE" | "SOPORTE" | "FACTURACION" | "VENTAS" | "ANALISTA";
+
+export type PlatformStaffRole = "SOPORTE" | "FACTURACION" | "VENTAS" | "ANALISTA";
+export const PLATFORM_STAFF_ROLES: PlatformStaffRole[] = ["SOPORTE", "FACTURACION", "VENTAS", "ANALISTA"];
+export const PLATFORM_ROLES: Role[] = ["SUPER_ADMIN", "SOPORTE", "FACTURACION", "VENTAS", "ANALISTA"];
 
 export type Permission =
   | "dashboard"

@@ -131,4 +131,8 @@ export const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrador",
   COLABORADOR: "Colaborador",
   CLIENTE: "Cliente",
+  SOPORTE: "Soporte",
+  FACTURACION: "Facturación",
+  VENTAS: "Ventas",
+  ANALISTA: "Analista",
 };

@@ -18,6 +18,10 @@ enum Role {
   ADMIN
   COLABORADOR
   CLIENTE
+  SOPORTE
+  FACTURACION
+  VENTAS
+  ANALISTA
 }
 
 enum TaskStatus {
