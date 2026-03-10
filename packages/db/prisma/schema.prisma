@@ -95,6 +95,7 @@ model Agency {
   maxUsers     Int      @default(50)
   planTier     String   @default("basic")
   billingEmail String?
+  trialEndsAt  DateTime?
   isActive     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

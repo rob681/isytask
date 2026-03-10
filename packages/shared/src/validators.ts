@@ -162,6 +162,19 @@ export const paginationSchema = z.object({
   pageSize: z.number().int().min(1).max(100).default(20),
 });
 
+// ── Public registration (SaaS self-service) ──
+
+export const registerAgencySchema = z.object({
+  agencyName: z.string().min(2, "Nombre de agencia requerido (min. 2 caracteres)"),
+  adminName: z.string().min(2, "Tu nombre es requerido"),
+  email: z.string().email("Email invalido"),
+  password: z.string().min(8, "Minimo 8 caracteres"),
+  confirmPassword: z.string(),
+}).refine((d) => d.password === d.confirmPassword, {
+  message: "Las contrasenas no coinciden",
+  path: ["confirmPassword"],
+});
+
 // ── Agency management (Super Admin) ──
 
 export const createAgencySchema = z.object({

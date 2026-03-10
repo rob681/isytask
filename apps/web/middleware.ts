@@ -33,6 +33,26 @@ export default withAuth(
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
 
+    // Landing page: show to anonymous, redirect authenticated users to dashboard
+    if (path === "/") {
+      if (!token) {
+        return NextResponse.next();
+      }
+      const role = token.role as string;
+      switch (role) {
+        case "SUPER_ADMIN":
+          return NextResponse.redirect(new URL("/superadmin", req.url));
+        case "ADMIN":
+          return NextResponse.redirect(new URL("/admin", req.url));
+        case "COLABORADOR":
+          return NextResponse.redirect(new URL("/equipo", req.url));
+        case "CLIENTE":
+          return NextResponse.redirect(new URL("/cliente", req.url));
+      }
+      return NextResponse.next();
+    }
+
+    // All other matched routes require authentication
     if (!token) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
@@ -67,25 +87,15 @@ export default withAuth(
       return NextResponse.redirect(new URL("/login", req.url));
     }
 
-    // Redirect root to role-specific dashboard
-    if (path === "/") {
-      switch (role) {
-        case "SUPER_ADMIN":
-          return NextResponse.redirect(new URL("/superadmin", req.url));
-        case "ADMIN":
-          return NextResponse.redirect(new URL("/admin", req.url));
-        case "COLABORADOR":
-          return NextResponse.redirect(new URL("/equipo", req.url));
-        case "CLIENTE":
-          return NextResponse.redirect(new URL("/cliente", req.url));
-      }
-    }
-
     return NextResponse.next();
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      authorized: ({ token, req }) => {
+        // Allow unauthenticated access to landing page
+        if (req.nextUrl.pathname === "/") return true;
+        return !!token;
+      },
     },
   }
 );
