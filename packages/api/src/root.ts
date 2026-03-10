@@ -13,6 +13,7 @@ import { pushRouter } from "./routers/push.router";
 import { recurringRouter } from "./routers/recurring.router";
 import { auditRouter } from "./routers/audit.router";
 import { templatesRouter } from "./routers/templates.router";
+import { agenciesRouter } from "./routers/agencies.router";
 
 export const appRouter = router({
   auth: authRouter,
@@ -29,6 +30,7 @@ export const appRouter = router({
   recurring: recurringRouter,
   audit: auditRouter,
   templates: templatesRouter,
+  agencies: agenciesRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -66,7 +66,11 @@ function requireRole(...roles: Role[]) {
     if (!ctx.session?.user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "No autenticado" });
     }
-    if (!roles.includes(ctx.session.user.role as Role)) {
+    const userRole = ctx.session.user.role as Role;
+    // SUPER_ADMIN hereda acceso de ADMIN
+    const passes = roles.includes(userRole) ||
+      (userRole === "SUPER_ADMIN" && roles.includes("ADMIN" as Role));
+    if (!passes) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: "No tienes permisos para esta acción",
@@ -83,7 +87,7 @@ export function requireAdminOrPermission(...permissions: Permission[]) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "No autenticado" });
     }
     const { role } = ctx.session.user;
-    if (role === "ADMIN") {
+    if (role === "SUPER_ADMIN" || role === "ADMIN") {
       return next({ ctx: { session: ctx.session } });
     }
     if (role === "COLABORADOR") {
@@ -99,11 +103,21 @@ export function requireAdminOrPermission(...permissions: Permission[]) {
   });
 }
 
-/** Extract agencyId from authenticated session */
-export function getAgencyId(ctx: { session: { user: { agencyId: string } } }): string {
-  return ctx.session.user.agencyId;
+/** Extract agencyId from authenticated session. Throws for SUPER_ADMIN without agency context. */
+export function getAgencyId(ctx: { session: { user: { agencyId?: string; role?: string } } }): string {
+  const { agencyId, role } = ctx.session.user;
+  if (!agencyId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: role === "SUPER_ADMIN"
+        ? "Esta operación requiere contexto de agencia."
+        : "No se encontró agencyId en la sesión.",
+    });
+  }
+  return agencyId;
 }
 
+export const superAdminProcedure = t.procedure.use(requireRole("SUPER_ADMIN" as Role));
 export const adminProcedure = t.procedure.use(requireRole("ADMIN"));
 export const colaboradorProcedure = t.procedure.use(
   requireRole("COLABORADOR")

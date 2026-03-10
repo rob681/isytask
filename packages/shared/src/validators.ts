@@ -9,7 +9,7 @@ export const createUserSchema = z.object({
   email: z.string().email("Email inválido"),
   name: z.string().min(1, "Nombre requerido"),
   phone: z.string().optional(),
-  role: z.enum(["ADMIN", "COLABORADOR", "CLIENTE"]),
+  role: z.enum(["SUPER_ADMIN", "ADMIN", "COLABORADOR", "CLIENTE"]),
 });
 
 // Auth flow schemas
@@ -160,4 +160,29 @@ export const createCommentSchema = z.object({
 export const paginationSchema = z.object({
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(20),
+});
+
+// ── Agency management (Super Admin) ──
+
+export const createAgencySchema = z.object({
+  name: z.string().min(1, "Nombre requerido"),
+  slug: z.string().min(1, "Slug requerido")
+    .regex(/^[a-z0-9-]+$/, "Solo minúsculas, números y guiones"),
+  logoUrl: z.string().url().optional().nullable(),
+  maxUsers: z.number().int().min(1).default(50),
+  planTier: z.string().default("basic"),
+  billingEmail: z.string().email().optional().nullable(),
+  adminEmail: z.string().email("Email del admin inválido"),
+  adminName: z.string().min(1, "Nombre del admin requerido"),
+});
+
+export const updateAgencySchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).optional(),
+  slug: z.string().regex(/^[a-z0-9-]+$/).optional(),
+  logoUrl: z.string().url().optional().nullable(),
+  isActive: z.boolean().optional(),
+  maxUsers: z.number().int().min(1).optional(),
+  planTier: z.string().optional(),
+  billingEmail: z.string().email().optional().nullable(),
 });

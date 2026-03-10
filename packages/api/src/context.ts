@@ -7,7 +7,7 @@ export interface Session {
     email: string;
     name: string;
     role: string;
-    agencyId: string;
+    agencyId?: string;
     clientProfileId?: string;
     colaboradorProfileId?: string;
     permissions?: string[];

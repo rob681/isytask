@@ -14,6 +14,7 @@ datasource db {
 // ──────────────────────────────────────────────
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   COLABORADOR
   CLIENTE
@@ -90,8 +91,11 @@ model Agency {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
-  logoUrl   String?
-  isActive  Boolean  @default(true)
+  logoUrl      String?
+  maxUsers     Int      @default(50)
+  planTier     String   @default("basic")
+  billingEmail String?
+  isActive     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -120,8 +124,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  agencyId     String
-  agency       Agency   @relation(fields: [agencyId], references: [id])
+  agencyId     String?
+  agency       Agency?  @relation(fields: [agencyId], references: [id])
 
   clientProfile      ClientProfile?
   colaboradorProfile ColaboradorProfile?

@@ -23,6 +23,8 @@ import {
   BarChart3,
   FileText,
   PieChart,
+  Globe,
+  Building2,
 } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
@@ -56,6 +58,11 @@ const colaboradorNav: NavItem[] = [
   { label: "Notificaciones", href: "/notificaciones", icon: <Bell className="h-5 w-5" /> },
 ];
 
+const superAdminNav: NavItem[] = [
+  { label: "Plataforma", href: "/superadmin", icon: <Globe className="h-5 w-5" /> },
+  { label: "Agencias", href: "/superadmin/agencias", icon: <Building2 className="h-5 w-5" /> },
+];
+
 const clienteNav: NavItem[] = [
   { label: "Dashboard", href: "/cliente/dashboard", icon: <PieChart className="h-5 w-5" /> },
   { label: "Cola de Tareas", href: "/cliente", icon: <ListTodo className="h-5 w-5" /> },
@@ -82,7 +89,9 @@ function useNavItems() {
   const hasAdminAccess = role === "COLABORADOR" && permissions.length > 0;
 
   let navItems: NavItem[];
-  if (role === "ADMIN") {
+  if (role === "SUPER_ADMIN") {
+    navItems = superAdminNav;
+  } else if (role === "ADMIN") {
     navItems = adminNav;
   } else if (role === "COLABORADOR") {
     const items: NavItem[] = [...colaboradorNav];
@@ -201,11 +210,13 @@ export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: Sid
               </p>
               <div className="flex items-center gap-1 mt-1">
                 <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                  {role === "ADMIN"
-                    ? "Administrador"
-                    : role === "COLABORADOR"
-                      ? "Equipo"
-                      : "Cliente"}
+                  {role === "SUPER_ADMIN"
+                    ? "Super Admin"
+                    : role === "ADMIN"
+                      ? "Administrador"
+                      : role === "COLABORADOR"
+                        ? "Equipo"
+                        : "Cliente"}
                 </span>
                 {hasAdminAccess && (
                   <span className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">

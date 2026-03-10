@@ -45,10 +45,15 @@ export default withAuth(
       return NextResponse.next();
     }
 
+    // Super-admin routes
+    if (path.startsWith("/superadmin") && role !== "SUPER_ADMIN") {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+
     // Route protection by role
     if (path.startsWith("/admin")) {
-      if (role === "ADMIN") {
-        // Admin has full access
+      if (role === "SUPER_ADMIN" || role === "ADMIN") {
+        // Full access
       } else if (role === "COLABORADOR" && colaboradorCanAccessAdminRoute(path, permissions)) {
         // Collaborator with permissions can access specific admin routes
       } else {
@@ -65,6 +70,8 @@ export default withAuth(
     // Redirect root to role-specific dashboard
     if (path === "/") {
       switch (role) {
+        case "SUPER_ADMIN":
+          return NextResponse.redirect(new URL("/superadmin", req.url));
         case "ADMIN":
           return NextResponse.redirect(new URL("/admin", req.url));
         case "COLABORADOR":
@@ -86,6 +93,7 @@ export default withAuth(
 export const config = {
   matcher: [
     "/",
+    "/superadmin/:path*",
     "/admin/:path*",
     "/equipo/:path*",
     "/cliente/:path*",
