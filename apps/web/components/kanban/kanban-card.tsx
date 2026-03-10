@@ -38,19 +38,20 @@ export function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, isDragging } =
     useDraggable({
       id: task.id,
+      disabled: isDragOverlay, // Overlay cards must NOT register as draggable
     });
 
-  // When using DragOverlay, the original card should NOT move —
-  // it stays in place (faded) and the DragOverlay handles the visual drag.
+  // DragOverlay renders a visual-only copy — no dnd refs/listeners.
+  // The original card stays in place (faded) while DragOverlay follows the cursor.
   return (
     <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
+      ref={isDragOverlay ? undefined : setNodeRef}
+      {...(isDragOverlay ? {} : { ...listeners, ...attributes })}
       onClick={isDragging ? undefined : onClick}
       className={cn(
-        "rounded-lg border bg-card p-3 shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/40 transition-colors",
-        isDragging && "opacity-30 pointer-events-none",
+        "rounded-lg border bg-card p-3 shadow-sm transition-colors",
+        !isDragOverlay && "cursor-grab active:cursor-grabbing hover:border-primary/40",
+        isDragging && "opacity-30",
         isDragOverlay && "shadow-xl rotate-[2deg] scale-105 border-primary/50 ring-2 ring-primary/20"
       )}
     >

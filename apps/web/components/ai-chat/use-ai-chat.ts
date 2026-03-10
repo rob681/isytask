@@ -18,18 +18,30 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Use refs to avoid stale closures in the async sendMessage callback
+  const messagesRef = useRef<ChatMessage[]>([]);
+  messagesRef.current = messages;
+
+  const formDataRef = useRef<Record<string, any>>({});
+  formDataRef.current = formData;
+
+  const onFieldsUpdateRef = useRef(onFieldsUpdate);
+  onFieldsUpdateRef.current = onFieldsUpdate;
+
   const sendMessage = useCallback(
     async (userMessage: string) => {
       if (!userMessage.trim() || isStreaming) return;
 
       const newUserMsg: ChatMessage = { role: "user", content: userMessage.trim() };
-      const updatedMessages = [...messages, newUserMsg];
-      setMessages(updatedMessages);
-      setIsStreaming(true);
 
-      // Add empty assistant message to stream into
+      // Use ref for current messages to avoid stale closure
+      const currentMessages = messagesRef.current;
+      const updatedMessages = [...currentMessages, newUserMsg];
+
+      // Add user message + empty assistant placeholder
       const assistantMsg: ChatMessage = { role: "assistant", content: "" };
       setMessages([...updatedMessages, assistantMsg]);
+      setIsStreaming(true);
 
       try {
         const controller = new AbortController();
@@ -41,7 +53,7 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
           body: JSON.stringify({
             serviceId,
             messages: updatedMessages,
-            currentFormState: formData,
+            currentFormState: formDataRef.current,
           }),
           signal: controller.signal,
         });
@@ -70,6 +82,7 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
         let buffer = "";
         let assistantContent = "";
         let currentEvent = "";
+        let hadToolCall = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -105,7 +118,8 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
                 }
 
                 if (currentEvent === "tool_call" && data.arguments) {
-                  onFieldsUpdate(data.arguments);
+                  hadToolCall = true;
+                  onFieldsUpdateRef.current(data.arguments);
                 }
 
                 if (currentEvent === "error" && data.message) {
@@ -126,6 +140,19 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
             }
           }
         }
+
+        // If the AI only called a tool (no text), show a confirmation message
+        if (hadToolCall && !assistantContent.trim()) {
+          assistantContent = "He actualizado los campos del formulario con la información proporcionada. ¿Hay algo más que necesites ajustar?";
+          setMessages((prev) => {
+            const copy = [...prev];
+            copy[copy.length - 1] = {
+              role: "assistant",
+              content: assistantContent,
+            };
+            return copy;
+          });
+        }
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
           setMessages((prev) => {
@@ -142,7 +169,8 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
         abortRef.current = null;
       }
     },
-    [serviceId, formData, messages, isStreaming, onFieldsUpdate]
+    // Only depend on serviceId and isStreaming — refs handle the rest
+    [serviceId, isStreaming]
   );
 
   const clearChat = useCallback(() => {
