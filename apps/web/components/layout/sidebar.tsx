@@ -175,9 +175,14 @@ export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: Sid
       {!collapsed ? (
         <div className="flex items-center justify-between p-4 border-b">
           <img
-            src={isDark ? "/isytask-logo-white.svg" : "/isytask-logo.svg"}
+            src="/isytask-logo.svg"
             alt="Isytask"
-            className="h-8 max-w-[140px] object-contain"
+            className="h-8 max-w-[140px] object-contain dark:hidden"
+          />
+          <img
+            src="/isytask-logo-white.svg"
+            alt="Isytask"
+            className="h-8 max-w-[140px] object-contain hidden dark:block"
           />
           {onCollapsedChange && (
             <Button
@@ -193,9 +198,14 @@ export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: Sid
       ) : (
         <div className="flex flex-col items-center gap-1 py-3 px-1 border-b">
           <img
-            src={isDark ? "/isytask-icon-white.svg" : "/isytask-icon.svg"}
+            src="/isytask-icon.svg"
             alt="Isytask"
-            className="h-8 w-8 object-contain"
+            className="h-8 w-8 object-contain dark:hidden"
+          />
+          <img
+            src="/isytask-icon-white.svg"
+            alt="Isytask"
+            className="h-8 w-8 object-contain hidden dark:block"
           />
           {onCollapsedChange && (
             <Button
