@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { compare, hash } from "bcryptjs";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, adminOrPermissionProcedure, protectedProcedure, router } from "../trpc";
+import { adminProcedure, adminOrPermissionProcedure, protectedProcedure, router, getAgencyId } from "../trpc";
 import { createUserSchema, updateUserSchema, changePasswordSchema, ALL_PERMISSIONS } from "@isytask/shared";
 import { createToken } from "../lib/tokens";
 import { sendEmailNotification } from "../lib/email";
@@ -19,7 +19,9 @@ export const usersRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
       const where = {
+        agencyId,
         ...(input.role && { role: input.role }),
         ...(input.search && {
           OR: [
@@ -77,8 +79,9 @@ export const usersRouter = router({
   getById: teamProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db.user.findUniqueOrThrow({
-        where: { id: input.id },
+      const agencyId = getAgencyId(ctx);
+      return ctx.db.user.findFirstOrThrow({
+        where: { id: input.id, agencyId },
         select: {
           id: true,
           email: true,
@@ -123,12 +126,14 @@ export const usersRouter = router({
     .input(createUserSchema)
     .mutation(async ({ ctx, input }) => {
       // Create user WITHOUT password — they'll set it via invitation link
+      const agencyId = getAgencyId(ctx);
       const user = await ctx.db.user.create({
         data: {
           email: input.email,
           name: input.name,
           phone: input.phone,
           role: input.role,
+          agencyId,
           ...(input.role === "CLIENTE" && {
             clientProfile: {
               create: {

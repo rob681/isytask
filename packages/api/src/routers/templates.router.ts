@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminProcedure, protectedProcedure, router } from "../trpc";
+import { adminProcedure, protectedProcedure, router, getAgencyId } from "../trpc";
 
 export const templatesRouter = router({
   /** List templates – admin sees all, clients see only for their allowed services */
@@ -11,7 +11,8 @@ export const templatesRouter = router({
       }).optional().default({})
     )
     .query(async ({ ctx, input }) => {
-      const where: any = {};
+      const agencyId = getAgencyId(ctx);
+      const where: any = { agencyId };
 
       if (input.activeOnly) where.isActive = true;
       if (input.serviceId) where.serviceId = input.serviceId;
@@ -66,7 +67,8 @@ export const templatesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.taskTemplate.create({ data: input });
+      const agencyId = getAgencyId(ctx);
+      return ctx.db.taskTemplate.create({ data: { ...input, agencyId } });
     }),
 
   /** Update template (admin only) */

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { protectedProcedure, router } from "../trpc";
+import { protectedProcedure, router, getAgencyId } from "../trpc";
 
 export const searchRouter = router({
   global: protectedProcedure
@@ -15,9 +15,11 @@ export const searchRouter = router({
 
       const role = ctx.session.user.role as string;
       const userId = ctx.session.user.id;
+      const agencyId = getAgencyId(ctx);
 
       // Search tasks
       const taskWhere: any = {
+        agencyId,
         OR: [
           { title: { contains: q, mode: "insensitive" } },
           { description: { contains: q, mode: "insensitive" } },
@@ -81,6 +83,7 @@ export const searchRouter = router({
       if (role === "ADMIN") {
         const clientResults = await ctx.db.clientProfile.findMany({
           where: {
+            user: { agencyId },
             OR: [
               { companyName: { contains: q, mode: "insensitive" } },
               { user: { name: { contains: q, mode: "insensitive" } } },
@@ -105,6 +108,7 @@ export const searchRouter = router({
         const colabResults = await ctx.db.colaboradorProfile.findMany({
           where: {
             user: {
+              agencyId,
               OR: [
                 { name: { contains: q, mode: "insensitive" } },
                 { email: { contains: q, mode: "insensitive" } },

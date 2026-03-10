@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminOrPermissionProcedure, router } from "../trpc";
+import { adminOrPermissionProcedure, router, getAgencyId } from "../trpc";
 
 const clientsProcedure = adminOrPermissionProcedure("manage_clients");
 
@@ -13,8 +13,10 @@ export const clientsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
       const where = {
         user: {
+          agencyId,
           role: "CLIENTE" as const,
           ...(input.search && {
             OR: [

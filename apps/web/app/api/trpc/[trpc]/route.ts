@@ -18,6 +18,7 @@ const handler = (req: Request) =>
                 email: session.user.email!,
                 name: session.user.name!,
                 role: (session.user as any).role,
+                agencyId: (session.user as any).agencyId,
                 clientProfileId: (session.user as any).clientProfileId,
                 colaboradorProfileId: (session.user as any).colaboradorProfileId,
                 permissions: (session.user as any).permissions ?? [],

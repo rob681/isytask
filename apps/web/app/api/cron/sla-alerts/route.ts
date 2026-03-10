@@ -77,9 +77,9 @@ export async function POST(req: NextRequest) {
         recipients.push(task.colaborador.userId);
       }
 
-      // Add admins
+      // Add admins (same agency as the task)
       const admins = await db.user.findMany({
-        where: { role: "ADMIN", isActive: true },
+        where: { role: "ADMIN", isActive: true, agencyId: task.agencyId },
         select: { id: true },
       });
       for (const admin of admins) {

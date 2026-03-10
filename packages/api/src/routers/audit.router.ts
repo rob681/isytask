@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminOrPermissionProcedure, router } from "../trpc";
+import { adminOrPermissionProcedure, router, getAgencyId } from "../trpc";
 
 const auditProcedure = adminOrPermissionProcedure("dashboard");
 
@@ -35,6 +35,8 @@ export const auditRouter = router({
       }
       const hasDateFilter = Object.keys(dateWhere).length > 0;
 
+      const agencyId = getAgencyId(ctx);
+
       type AuditEntry = {
         id: string;
         type: "STATUS_CHANGE" | "COMMENT" | "TASK_CREATED";
@@ -52,7 +54,7 @@ export const auditRouter = router({
 
       // 1. Status changes
       if (entityType === "ALL" || entityType === "STATUS_CHANGE") {
-        const where: any = {};
+        const where: any = { task: { agencyId } };
         if (hasDateFilter) where.createdAt = dateWhere;
         if (userId) where.changedById = userId;
         if (taskId) where.taskId = taskId;
@@ -87,7 +89,7 @@ export const auditRouter = router({
 
       // 2. Comments
       if (entityType === "ALL" || entityType === "COMMENT") {
-        const where: any = {};
+        const where: any = { task: { agencyId } };
         if (hasDateFilter) where.createdAt = dateWhere;
         if (userId) where.authorId = userId;
         if (taskId) where.taskId = taskId;
@@ -120,7 +122,7 @@ export const auditRouter = router({
 
       // 3. Task creations (first status log entry for each task = creation)
       if (entityType === "ALL" || entityType === "TASK_CREATED") {
-        const taskWhere: any = {};
+        const taskWhere: any = { agencyId };
         if (hasDateFilter) taskWhere.createdAt = dateWhere;
         if (taskId) taskWhere.id = taskId;
 
@@ -182,8 +184,9 @@ export const auditRouter = router({
 
   // List of all users for filter dropdown
   getUsers: auditProcedure.query(async ({ ctx }) => {
+    const agencyId = getAgencyId(ctx);
     return ctx.db.user.findMany({
-      where: { isActive: true },
+      where: { agencyId, isActive: true },
       select: { id: true, name: true, role: true },
       orderBy: { name: "asc" },
     });

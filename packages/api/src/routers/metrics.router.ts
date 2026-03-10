@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminOrPermissionProcedure, protectedProcedure, router } from "../trpc";
+import { adminOrPermissionProcedure, protectedProcedure, router, getAgencyId } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
 const dashboardProcedure = adminOrPermissionProcedure("dashboard");
@@ -28,8 +28,8 @@ const filterSchema = z.object({
 });
 
 /** Build Prisma where clause from filters */
-function buildWhere(input: z.infer<typeof filterSchema>) {
-  const where: any = {};
+function buildWhere(input: z.infer<typeof filterSchema>, agencyId: string) {
+  const where: any = { agencyId };
 
   if (input.dateFrom || input.dateTo) {
     where.createdAt = {};
@@ -52,7 +52,7 @@ export const metricsRouter = router({
   tasksByStatus: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
-      const where = buildWhere(input);
+      const where = buildWhere(input, getAgencyId(ctx));
       const results = await ctx.db.task.groupBy({
         by: ["status"],
         where,
@@ -64,7 +64,7 @@ export const metricsRouter = router({
   tasksByCategory: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
-      const where = buildWhere(input);
+      const where = buildWhere(input, getAgencyId(ctx));
       const results = await ctx.db.task.groupBy({
         by: ["category"],
         where,
@@ -76,7 +76,7 @@ export const metricsRouter = router({
   tasksByClient: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
-      const where = buildWhere(input);
+      const where = buildWhere(input, getAgencyId(ctx));
       const results = await ctx.db.task.groupBy({
         by: ["clientId"],
         where,
@@ -108,7 +108,9 @@ export const metricsRouter = router({
       }).optional().default({})
     )
     .query(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
       const where: any = {
+        agencyId,
         createdAt: {
           gte: new Date(input.year, 0, 1),
           lt: new Date(input.year + 1, 0, 1),
@@ -136,7 +138,8 @@ export const metricsRouter = router({
   summary: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
-      const where = buildWhere(input);
+      const agencyId = getAgencyId(ctx);
+      const where = buildWhere(input, agencyId);
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -164,8 +167,8 @@ export const metricsRouter = router({
         await Promise.all([
           ctx.db.task.count({ where }),
           ctx.db.task.count({ where: activeWhere }),
-          ctx.db.clientProfile.count(),
-          ctx.db.colaboradorProfile.count(),
+          ctx.db.user.count({ where: { agencyId, role: "CLIENTE" } }),
+          ctx.db.user.count({ where: { agencyId, role: "COLABORADOR" } }),
           ctx.db.task.count({ where: completedWhere }),
           ctx.db.task.count({ where: newWhere }),
         ]);
@@ -176,7 +179,7 @@ export const metricsRouter = router({
   recentActivity: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
-      const where = buildWhere(input);
+      const where = buildWhere(input, getAgencyId(ctx));
       const recentTasks = await ctx.db.task.findMany({
         take: 8,
         where,
@@ -209,8 +212,10 @@ export const metricsRouter = router({
   colaboradorWorkload: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
       const clientFilter = input.clientId ? { clientId: input.clientId } : {};
       const colaboradores = await ctx.db.colaboradorProfile.findMany({
+        where: { user: { agencyId } },
         include: {
           user: { select: { name: true } },
           _count: {
@@ -408,7 +413,7 @@ export const metricsRouter = router({
   profitabilityByService: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
-      const where = { ...buildWhere(input), status: "FINALIZADA" as const, startedAt: { not: null }, completedAt: { not: null } };
+      const where = { ...buildWhere(input, getAgencyId(ctx)), status: "FINALIZADA" as const, startedAt: { not: null }, completedAt: { not: null } };
       const tasks = await ctx.db.task.findMany({
         where,
         select: {
@@ -451,7 +456,7 @@ export const metricsRouter = router({
   profitabilityByColaborador: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
-      const where: any = { ...buildWhere(input), status: "FINALIZADA", startedAt: { not: null }, completedAt: { not: null }, colaboradorId: { not: null } };
+      const where: any = { ...buildWhere(input, getAgencyId(ctx)), status: "FINALIZADA", startedAt: { not: null }, completedAt: { not: null }, colaboradorId: { not: null } };
       const tasks = await ctx.db.task.findMany({
         where,
         select: {
@@ -495,7 +500,7 @@ export const metricsRouter = router({
   profitabilityByClient: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
-      const where: any = { ...buildWhere(input), status: "FINALIZADA", startedAt: { not: null }, completedAt: { not: null } };
+      const where: any = { ...buildWhere(input, getAgencyId(ctx)), status: "FINALIZADA", startedAt: { not: null }, completedAt: { not: null } };
       const tasks = await ctx.db.task.findMany({
         where,
         select: {
@@ -665,7 +670,7 @@ export const metricsRouter = router({
   exportData: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
-      const where = buildWhere(input);
+      const where = buildWhere(input, getAgencyId(ctx));
       const tasks = await ctx.db.task.findMany({
         where,
         orderBy: { createdAt: "asc" },

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, router } from "../trpc";
+import { adminProcedure, router, getAgencyId } from "../trpc";
 import { notifyTaskStatusChange } from "../lib/notifications";
 
 function calculateNextRunAt(
@@ -46,7 +46,9 @@ const DAY_LABELS: Record<string, string> = {
 export const recurringRouter = router({
   // List all recurring tasks
   list: adminProcedure.query(async ({ ctx }) => {
+    const agencyId = getAgencyId(ctx);
     return ctx.db.recurringTask.findMany({
+      where: { agencyId },
       include: {
         client: {
           include: { user: { select: { name: true } } },
@@ -107,8 +109,10 @@ export const recurringRouter = router({
         input.recurrenceTime
       );
 
+      const agencyId = getAgencyId(ctx);
       return ctx.db.recurringTask.create({
         data: {
+          agencyId,
           clientId: input.clientId,
           serviceId: input.serviceId,
           colaboradorId,
@@ -236,6 +240,7 @@ export const recurringRouter = router({
         // Create the task
         const task = await ctx.db.task.create({
           data: {
+            agencyId: rt.agencyId,
             clientId: rt.clientId,
             serviceId: rt.serviceId,
             title: rt.title,

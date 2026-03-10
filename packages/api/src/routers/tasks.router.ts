@@ -13,7 +13,7 @@ import {
   updateTaskStatusSchema,
   canTransition,
 } from "@isytask/shared";
-import { adminOrPermissionProcedure } from "../trpc";
+import { adminOrPermissionProcedure, getAgencyId } from "../trpc";
 import { notifyTaskStatusChange } from "../lib/notifications";
 import { deleteFile as deleteStorageFile } from "../lib/supabase-storage";
 
@@ -208,8 +208,10 @@ export const tasksRouter = router({
         dueAt.setHours(dueAt.getHours() + service.slaHours);
       }
 
+      const agencyId = getAgencyId(ctx);
       const task = await ctx.db.task.create({
         data: {
+          agencyId,
           clientId: clientProfile.id,
           serviceId: input.serviceId,
           title: input.title,
@@ -352,8 +354,10 @@ export const tasksRouter = router({
         }
       }
 
+      const agencyId = getAgencyId(ctx);
       const task = await ctx.db.task.create({
         data: {
+          agencyId,
           clientId: clientProfile.id,
           serviceId: input.serviceId,
           title: input.title,
@@ -459,8 +463,10 @@ export const tasksRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Perfil no encontrado" });
       }
 
+      const agencyId = getAgencyId(ctx);
       const tasks = await ctx.db.task.findMany({
         where: {
+          agencyId,
           status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA", "REVISION"] },
         },
         include: {
@@ -967,7 +973,9 @@ export const tasksRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
       const where = {
+        agencyId,
         ...(input.status && { status: input.status }),
         ...(input.category && { category: input.category }),
         ...(input.clientId && { clientId: input.clientId }),
@@ -1009,7 +1017,8 @@ export const tasksRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const role = ctx.session.user.role as string;
-      const where: any = {};
+      const agencyId = getAgencyId(ctx);
+      const where: any = { agencyId };
 
       if (input.category) where.category = input.category;
       if (input.clientId) where.clientId = input.clientId;

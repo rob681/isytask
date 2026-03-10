@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
 
         const task = await db.task.create({
           data: {
+            agencyId: rt.agencyId,
             clientId: rt.clientId,
             serviceId: rt.serviceId,
             title: rt.title,

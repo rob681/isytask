@@ -51,6 +51,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           avatarUrl: user.avatarUrl,
+          agencyId: user.agencyId,
           clientProfileId: user.clientProfile?.id,
           colaboradorProfileId: user.colaboradorProfile?.id,
           permissions: (user.colaboradorProfile?.permissions as string[]) ?? [],
@@ -64,6 +65,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as any).role;
         token.avatarUrl = (user as any).avatarUrl;
+        token.agencyId = (user as any).agencyId;
         token.clientProfileId = (user as any).clientProfileId;
         token.colaboradorProfileId = (user as any).colaboradorProfileId;
         token.permissions = (user as any).permissions ?? [];
@@ -75,6 +77,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).avatarUrl = token.avatarUrl;
+        (session.user as any).agencyId = token.agencyId;
         (session.user as any).clientProfileId = token.clientProfileId;
         (session.user as any).colaboradorProfileId = token.colaboradorProfileId;
         (session.user as any).permissions = token.permissions ?? [];

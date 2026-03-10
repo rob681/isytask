@@ -99,6 +99,11 @@ export function requireAdminOrPermission(...permissions: Permission[]) {
   });
 }
 
+/** Extract agencyId from authenticated session */
+export function getAgencyId(ctx: { session: { user: { agencyId: string } } }): string {
+  return ctx.session.user.agencyId;
+}
+
 export const adminProcedure = t.procedure.use(requireRole("ADMIN"));
 export const colaboradorProcedure = t.procedure.use(
   requireRole("COLABORADOR")

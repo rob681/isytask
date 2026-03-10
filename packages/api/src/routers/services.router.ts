@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminProcedure, protectedProcedure, router } from "../trpc";
+import { adminProcedure, protectedProcedure, router, getAgencyId } from "../trpc";
 import { createServiceSchema, updateServiceSchema, updateServiceSchemaFull, formFieldConfigSchema } from "@isytask/shared";
 
 export const servicesRouter = router({
@@ -19,8 +19,10 @@ export const servicesRouter = router({
       }
     }
 
+    const agencyId = getAgencyId(ctx);
     return ctx.db.service.findMany({
       where: {
+        agencyId,
         isActive: true,
         ...(whereIds && { id: { in: whereIds } }),
       },
@@ -48,7 +50,8 @@ export const servicesRouter = router({
       slaHours: z.number().int().min(1).optional().nullable(),
     }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.service.create({ data: input });
+      const agencyId = getAgencyId(ctx);
+      return ctx.db.service.create({ data: { ...input, agencyId } });
     }),
 
   update: adminProcedure
