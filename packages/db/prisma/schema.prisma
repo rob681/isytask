@@ -87,6 +87,11 @@ enum FieldType {
   URL
 }
 
+enum Product {
+  ISYTASK
+  ISYSOCIAL
+}
+
 // ──────────────────────────────────────────────
 // AGENCY (multi-tenant)
 // ──────────────────────────────────────────────
@@ -104,13 +109,64 @@ model Agency {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Ecosystem: Stripe customer shared across products
+  stripeCustomerId String? @unique
+
   users          User[]
   services       Service[]
   tasks          Task[]
   recurringTasks RecurringTask[]
   taskTemplates  TaskTemplate[]
+  subscriptions  Subscription[]
 
   @@map("agencies")
+}
+
+// ──────────────────────────────────────────────
+// SUBSCRIPTIONS (multi-product billing)
+// ──────────────────────────────────────────────
+
+model Subscription {
+  id            String   @id @default(cuid())
+  agencyId      String
+  agency        Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  product       Product
+  planTier      String   // "basic" | "pro" | "enterprise"
+
+  // Stripe
+  stripeSubscriptionId String? @unique
+  stripePriceId        String?
+
+  // Billing status
+  status             String   @default("trial") // "active" | "past_due" | "canceled" | "trial"
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  trialEndsAt        DateTime?
+  canceledAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agencyId, product])
+  @@index([agencyId])
+  @@index([product])
+  @@map("subscriptions")
+}
+
+// ──────────────────────────────────────────────
+// CROSS-PRODUCT DISCOUNTS
+// ──────────────────────────────────────────────
+
+model CrossProductDiscount {
+  id              String  @id @default(cuid())
+  product1        Product
+  product2        Product
+  discountPercent Float   @default(10)
+  isActive        Boolean @default(true)
+
+  @@unique([product1, product2])
+  @@map("cross_product_discounts")
 }
 
 // ──────────────────────────────────────────────

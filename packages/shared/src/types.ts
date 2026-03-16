@@ -48,6 +48,20 @@ export type FieldType =
   | "DATE"
   | "URL";
 
+// ── Ecosystem (multi-product) ──
+
+export type Product = "ISYTASK" | "ISYSOCIAL";
+export type PlanTier = "basic" | "pro" | "enterprise";
+export type SubscriptionStatus = "active" | "past_due" | "canceled" | "trial";
+
+export interface SubscriptionInfo {
+  product: Product;
+  planTier: PlanTier;
+  status: SubscriptionStatus;
+  currentPeriodEnd?: Date | null;
+  trialEndsAt?: Date | null;
+}
+
 export interface QueueTask {
   id: string;
   isOwn: boolean;

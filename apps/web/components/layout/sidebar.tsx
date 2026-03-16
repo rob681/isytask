@@ -34,6 +34,7 @@ import { useState } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "./theme-switcher";
+import { ProductSelector } from "./product-selector";
 import { trpc } from "@/lib/trpc/client";
 
 interface NavItem {
@@ -228,6 +229,13 @@ export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: Sid
             alt="Company"
             className="h-10 max-w-[160px] object-contain"
           />
+        </div>
+      )}
+
+      {/* Product Selector (multi-product ecosystem) */}
+      {(role === "ADMIN" || role === "COLABORADOR" || role === "CLIENTE") && (
+        <div className="px-2 py-1 border-b">
+          <ProductSelector collapsed={collapsed} />
         </div>
       )}
 

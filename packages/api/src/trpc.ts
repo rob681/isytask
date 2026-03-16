@@ -136,3 +136,43 @@ export const platformProcedure = t.procedure.use(
 export function adminOrPermissionProcedure(...permissions: Permission[]) {
   return t.procedure.use(requireAdminOrPermission(...permissions));
 }
+
+// ── Product-aware middleware (ecosystem) ──
+
+type ProductType = "ISYTASK" | "ISYSOCIAL";
+
+/** Middleware that validates an agency has an active subscription for a specific product */
+export function withProduct(product: ProductType) {
+  return t.middleware(async ({ ctx, next }) => {
+    if (!ctx.session?.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "No autenticado" });
+    }
+    const agencyId = ctx.session.user.agencyId as string | undefined;
+    if (!agencyId) {
+      // SUPER_ADMIN and platform staff don't need product checks
+      const role = ctx.session.user.role as string;
+      if (["SUPER_ADMIN", "SOPORTE", "FACTURACION", "VENTAS", "ANALISTA"].includes(role)) {
+        return next({ ctx: { session: ctx.session, product } });
+      }
+      throw new TRPCError({ code: "BAD_REQUEST", message: "No se encontró agencyId" });
+    }
+
+    const subscription = await (ctx as any).db.subscription.findUnique({
+      where: { agencyId_product: { agencyId, product } },
+    });
+
+    if (!subscription || !["active", "trial"].includes(subscription.status)) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `No tienes acceso a ${product}. Actualiza tu suscripción.`,
+      });
+    }
+
+    return next({
+      ctx: { session: ctx.session, product, subscription },
+    });
+  });
+}
+
+export const isytaskProcedure = t.procedure.use(isAuthenticated).use(rateLimit).use(withProduct("ISYTASK"));
+export const isysocialProcedure = t.procedure.use(isAuthenticated).use(rateLimit).use(withProduct("ISYSOCIAL"));

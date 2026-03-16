@@ -207,3 +207,11 @@ export const updateAgencySchema = z.object({
   planTier: z.string().optional(),
   billingEmail: z.string().email().optional().nullable(),
 });
+
+// ── Ecosystem (multi-product) ──
+
+export const subscriptionUpdateSchema = z.object({
+  product: z.enum(["ISYTASK", "ISYSOCIAL"]),
+  planTier: z.enum(["basic", "pro", "enterprise"]),
+  billingEmail: z.string().email().optional(),
+});

@@ -1,4 +1,4 @@
-import type { TaskStatus, TaskCategory, Permission } from "./types";
+import type { TaskStatus, TaskCategory, Permission, Product, PlanTier } from "./types";
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
   dashboard: "Dashboard y métricas",
@@ -136,3 +136,26 @@ export const ROLE_LABELS: Record<string, string> = {
   VENTAS: "Ventas",
   ANALISTA: "Analista",
 };
+
+// ── Ecosystem (multi-product) ──
+
+export const PRODUCTS: Record<Product, { name: string; description: string; icon: string }> = {
+  ISYTASK: {
+    name: "Isytask",
+    description: "Gestión de tareas para agencias",
+    icon: "CheckSquare",
+  },
+  ISYSOCIAL: {
+    name: "Isysocial",
+    description: "Gestión de redes sociales",
+    icon: "Share2",
+  },
+};
+
+export const PLAN_TIERS: Record<PlanTier, { name: string; price: number | null }> = {
+  basic: { name: "Básico", price: 29 },
+  pro: { name: "Pro", price: 79 },
+  enterprise: { name: "Enterprise", price: null },
+};
+
+export const CROSS_PRODUCT_DISCOUNT = 10; // 10% si tienes ambos productos
