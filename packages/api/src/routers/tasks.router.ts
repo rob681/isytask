@@ -158,9 +158,11 @@ export const tasksRouter = router({
         },
       });
 
-      // Validate formData against dynamic fields
+      // Validate formData against dynamic fields (skip validation for skipped fields)
       if (service.formFields.length > 0) {
-        const formSchema = buildFormDataSchema(service.formFields);
+        const skippedSet = new Set(input.skippedFields ?? []);
+        const activeFields = service.formFields.filter((f) => !skippedSet.has(f.fieldName));
+        const formSchema = buildFormDataSchema(activeFields);
         const result = formSchema.safeParse(input.formData ?? {});
         if (!result.success) {
           const firstError = result.error.errors[0];
@@ -236,6 +238,21 @@ export const tasksRouter = router({
               create: { colaboradorId: autoColaboradorId, role: "PRIMARY" },
             },
           }),
+          // Create individual TaskResponse records for each form field
+          ...(service.formFields.length > 0 && {
+            responses: {
+              create: service.formFields.map((field) => {
+                const rawValue = (input.formData as Record<string, any>)?.[field.fieldName];
+                const skipped = (input.skippedFields as string[] | undefined)?.includes(field.fieldName) ?? false;
+                return {
+                  fieldId: field.id,
+                  fieldName: field.fieldName,
+                  value: skipped ? undefined : (rawValue !== undefined && rawValue !== "" ? rawValue : undefined),
+                  skipped,
+                };
+              }),
+            },
+          }),
         },
         include: {
           service: { select: { name: true } },
@@ -277,9 +294,11 @@ export const tasksRouter = router({
         },
       });
 
-      // Validate formData against dynamic fields
+      // Validate formData against dynamic fields (skip validation for skipped fields)
       if (service.formFields.length > 0) {
-        const formSchema = buildFormDataSchema(service.formFields);
+        const skippedSet = new Set(input.skippedFields ?? []);
+        const activeFields = service.formFields.filter((f) => !skippedSet.has(f.fieldName));
+        const formSchema = buildFormDataSchema(activeFields);
         const result = formSchema.safeParse(input.formData ?? {});
         if (!result.success) {
           const firstError = result.error.errors[0];
@@ -378,6 +397,21 @@ export const tasksRouter = router({
           },
           ...(assignmentCreates.length > 0 && {
             assignments: { create: assignmentCreates },
+          }),
+          // Create individual TaskResponse records for each form field
+          ...(service.formFields.length > 0 && {
+            responses: {
+              create: service.formFields.map((field) => {
+                const rawValue = (input.formData as Record<string, any>)?.[field.fieldName];
+                const skipped = (input.skippedFields as string[] | undefined)?.includes(field.fieldName) ?? false;
+                return {
+                  fieldId: field.id,
+                  fieldName: field.fieldName,
+                  value: skipped ? undefined : (rawValue !== undefined && rawValue !== "" ? rawValue : undefined),
+                  skipped,
+                };
+              }),
+            },
           }),
         },
         include: {
@@ -932,6 +966,10 @@ export const tasksRouter = router({
           assignments: {
             include: { colaborador: { include: { user: { select: { name: true } } } } },
             orderBy: { role: "asc" },
+          },
+          responses: {
+            include: { field: { select: { label: true, fieldType: true, options: true, sortOrder: true } } },
+            orderBy: { field: { sortOrder: "asc" } },
           },
         },
       });

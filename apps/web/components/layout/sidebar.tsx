@@ -55,6 +55,7 @@ const adminNav: NavItem[] = [
   { label: "Plantillas", href: "/admin/plantillas", icon: <FileText className="h-5 w-5" />, permission: "manage_services" },
   { label: "Rentabilidad", href: "/admin/reportes", icon: <BarChart3 className="h-5 w-5" />, permission: "dashboard" },
   { label: "Historial", href: "/admin/audit", icon: <Activity className="h-5 w-5" />, permission: "dashboard" },
+  { label: "Facturación", href: "/admin/billing", icon: <CreditCard className="h-5 w-5" />, permission: "manage_config" },
   { label: "Configuración", href: "/admin/configuracion", icon: <Settings className="h-5 w-5" />, permission: "manage_config" },
 ];
 

@@ -19,6 +19,7 @@ export default function NuevaTareaPage() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<"URGENTE" | "NORMAL" | "LARGO_PLAZO">("NORMAL");
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [skippedFields, setSkippedFields] = useState<Set<string>>(new Set());
   const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<
     Array<{ url: string; storagePath: string; fileName: string; fileSize: number; mimeType: string }>
@@ -95,6 +96,24 @@ export default function NuevaTareaPage() {
 
   const handleFieldChange = (fieldName: string, value: any) => {
     setFormData((prev) => ({ ...prev, [fieldName]: value }));
+  };
+
+  const toggleSkipField = (fieldName: string) => {
+    setSkippedFields((prev) => {
+      const next = new Set(prev);
+      if (next.has(fieldName)) {
+        next.delete(fieldName);
+      } else {
+        next.add(fieldName);
+        // Clear the field value when skipping
+        setFormData((prevData) => {
+          const copy = { ...prevData };
+          delete copy[fieldName];
+          return copy;
+        });
+      }
+      return next;
+    });
   };
 
   const applyTemplate = (template: any) => {
@@ -177,6 +196,7 @@ export default function NuevaTareaPage() {
       description,
       category,
       formData,
+      skippedFields: skippedFields.size > 0 ? Array.from(skippedFields) : undefined,
     });
   };
 
@@ -288,6 +308,7 @@ export default function NuevaTareaPage() {
                       onChange={(e) => {
                         setSelectedServiceId(e.target.value);
                         setFormData({});
+                        setSkippedFields(new Set());
                         setAppliedTemplateId(null);
                       }}
                       required
@@ -353,20 +374,43 @@ export default function NuevaTareaPage() {
                   {formFields && formFields.length > 0 && (
                     <div className="space-y-4 border-t pt-4">
                       <h3 className="font-medium">Detalles del servicio</h3>
-                      {formFields.map((field) => (
+                      {formFields.map((field) => {
+                        const isSkipped = skippedFields.has(field.fieldName);
+                        return (
                         <div
                           key={field.id}
                           className={`space-y-2 rounded-lg transition-all duration-700 ${
+                            isSkipped ? "opacity-50" : ""
+                          } ${
                             highlightedFields.has(field.fieldName)
                               ? "ring-2 ring-primary/40 bg-primary/5 p-2"
                               : ""
                           }`}
                         >
-                          <label className="text-sm font-medium">
-                            {field.label}
-                            {field.isRequired && <span className="text-destructive ml-1">*</span>}
-                          </label>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium">
+                              {field.label}
+                              {field.isRequired && <span className="text-destructive ml-1">*</span>}
+                            </label>
+                            {!field.isRequired && (
+                              <button
+                                type="button"
+                                onClick={() => toggleSkipField(field.fieldName)}
+                                className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                                  isSkipped
+                                    ? "bg-muted text-muted-foreground border-muted-foreground/30"
+                                    : "text-muted-foreground/60 border-transparent hover:border-muted-foreground/30"
+                                }`}
+                              >
+                                {isSkipped ? "Omitido" : "No aplica"}
+                              </button>
+                            )}
+                          </div>
 
+                          {isSkipped ? (
+                            <p className="text-xs text-muted-foreground italic">Campo omitido — no aplica</p>
+                          ) : (
+                            <>
                           {field.fieldType === "TEXT" && (
                             <Input
                               placeholder={field.placeholder ?? ""}
@@ -526,8 +570,11 @@ export default function NuevaTareaPage() {
                               )}
                             </div>
                           )}
+                            </>
+                          )}
                         </div>
-                      ))}
+                      );
+                      })}
                     </div>
                   )}
 

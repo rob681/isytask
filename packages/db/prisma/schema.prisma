@@ -326,6 +326,7 @@ model ServiceFormField {
   validation  Json?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  responses   TaskResponse[]
 
   @@unique([serviceId, fieldName])
   @@map("service_form_fields")
@@ -371,6 +372,7 @@ model Task {
   statusLog   TaskStatusLog[]
   attachments TaskAttachment[]
   assignments TaskAssignment[]
+  responses   TaskResponse[]
 
   @@index([agencyId, status])
   @@index([clientId, status])
@@ -378,6 +380,27 @@ model Task {
   @@index([status, category])
   @@index([createdAt])
   @@map("tasks")
+}
+
+// ──────────────────────────────────────────────
+// TASK RESPONSES (per-field answers)
+// ──────────────────────────────────────────────
+
+model TaskResponse {
+  id          String   @id @default(cuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fieldId     String
+  field       ServiceFormField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  fieldName   String
+  value       Json?
+  skipped     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([taskId, fieldId])
+  @@index([taskId])
+  @@map("task_responses")
 }
 
 // ──────────────────────────────────────────────

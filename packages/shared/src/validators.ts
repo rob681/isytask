@@ -117,6 +117,7 @@ export const createTaskSchema = z.object({
   description: z.string().optional(),
   category: z.enum(["URGENTE", "NORMAL", "LARGO_PLAZO"]),
   formData: z.record(z.unknown()).optional(),
+  skippedFields: z.array(z.string()).optional(),
 });
 
 export const adminCreateTaskSchema = createTaskSchema.extend({

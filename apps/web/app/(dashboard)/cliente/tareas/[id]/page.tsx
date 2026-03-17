@@ -332,8 +332,8 @@ export default function ClienteTaskDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Form data */}
-            {formData && Object.keys(formData).length > 0 && (
+            {/* Form data — uses TaskResponse if available, fallback to formData */}
+            {((task.responses && task.responses.length > 0) || (formData && Object.keys(formData).length > 0)) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">
@@ -343,39 +343,72 @@ export default function ClienteTaskDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {task.service.formFields.map((field) => {
-                      const value = formData[field.fieldName];
-                      if (value === undefined || value === "" || value === null)
-                        return null;
-
-                      let displayValue: string;
-                      if (Array.isArray(value)) {
-                        displayValue = value.join(", ");
-                      } else if (typeof value === "boolean") {
-                        displayValue = value ? "Sí" : "No";
-                      } else {
-                        displayValue = String(value);
-                      }
-
-                      return (
-                        <div key={field.id}>
-                          <h4 className="text-sm font-medium text-muted-foreground">
-                            {field.label}
-                          </h4>
-                          {field.fieldType === "COLOR_PICKER" ? (
-                            <div className="flex items-center gap-2 mt-1">
-                              <div
-                                className="w-6 h-6 rounded border"
-                                style={{ backgroundColor: displayValue }}
-                              />
-                              <span className="text-sm">{displayValue}</span>
+                    {task.responses && task.responses.length > 0
+                      ? task.responses.map((resp: any) => {
+                          if (resp.skipped) {
+                            return (
+                              <div key={resp.id}>
+                                <h4 className="text-sm font-medium text-muted-foreground">
+                                  {resp.field?.label ?? resp.fieldName}
+                                </h4>
+                                <p className="text-xs text-muted-foreground italic mt-0.5">No aplica</p>
+                              </div>
+                            );
+                          }
+                          const value = resp.value;
+                          if (value === undefined || value === "" || value === null) return null;
+                          let displayValue: string;
+                          if (Array.isArray(value)) {
+                            displayValue = value.join(", ");
+                          } else if (typeof value === "boolean") {
+                            displayValue = value ? "Sí" : "No";
+                          } else {
+                            displayValue = String(value);
+                          }
+                          return (
+                            <div key={resp.id}>
+                              <h4 className="text-sm font-medium text-muted-foreground">
+                                {resp.field?.label ?? resp.fieldName}
+                              </h4>
+                              {resp.field?.fieldType === "COLOR_PICKER" ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <div className="w-6 h-6 rounded border" style={{ backgroundColor: displayValue }} />
+                                  <span className="text-sm">{displayValue}</span>
+                                </div>
+                              ) : (
+                                <p className="text-sm mt-0.5">{displayValue}</p>
+                              )}
                             </div>
-                          ) : (
-                            <p className="text-sm mt-0.5">{displayValue}</p>
-                          )}
-                        </div>
-                      );
-                    })}
+                          );
+                        })
+                      : task.service.formFields.map((field) => {
+                          const value = formData?.[field.fieldName];
+                          if (value === undefined || value === "" || value === null) return null;
+                          let displayValue: string;
+                          if (Array.isArray(value)) {
+                            displayValue = value.join(", ");
+                          } else if (typeof value === "boolean") {
+                            displayValue = value ? "Sí" : "No";
+                          } else {
+                            displayValue = String(value);
+                          }
+                          return (
+                            <div key={field.id}>
+                              <h4 className="text-sm font-medium text-muted-foreground">
+                                {field.label}
+                              </h4>
+                              {field.fieldType === "COLOR_PICKER" ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <div className="w-6 h-6 rounded border" style={{ backgroundColor: displayValue }} />
+                                  <span className="text-sm">{displayValue}</span>
+                                </div>
+                              ) : (
+                                <p className="text-sm mt-0.5">{displayValue}</p>
+                              )}
+                            </div>
+                          );
+                        })
+                    }
                   </div>
                 </CardContent>
               </Card>
