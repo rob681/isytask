@@ -304,3 +304,67 @@ export async function streamChatCompletion({
     return null;
   }
 }
+
+/**
+ * Non-streaming chat completion. Returns the full response text.
+ * Used for structured responses (e.g., onboarding service suggestions).
+ */
+export async function chatCompletion({
+  db,
+  messages,
+  model,
+  maxTokens = 2048,
+  temperature = 0.7,
+}: {
+  db: PrismaClient;
+  messages: ChatMessage[];
+  model?: string;
+  maxTokens?: number;
+  temperature?: number;
+}): Promise<string | null> {
+  try {
+    const apiKey = await getConfig(db, "openrouter_api_key", "");
+    if (!apiKey) {
+      console.error("[OpenRouter] No API key configured");
+      return null;
+    }
+
+    const defaultModel = await getConfig(
+      db,
+      "ai_agent_default_model",
+      "openai/gpt-4o-mini"
+    );
+
+    const response = await fetch(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://isytask-web.vercel.app",
+          "X-Title": "Isytask",
+        },
+        body: JSON.stringify({
+          model: model || defaultModel,
+          messages,
+          stream: false,
+          max_tokens: maxTokens,
+          temperature,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[OpenRouter] API error:", response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content ?? null;
+  } catch (error) {
+    console.error("[OpenRouter] Error:", error);
+    return null;
+  }
+}

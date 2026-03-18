@@ -3,6 +3,7 @@ import { SidebarProvider } from "@/components/layout/sidebar-context";
 import { NotificationListener } from "@/components/layout/notification-listener";
 import { GuidedTour } from "@/components/tour/guided-tour";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { MotivationalToastWrapper } from "@/components/motivational-toast-wrapper";
 
 export default function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default function DashboardLayout({
         </main>
         <NotificationListener />
         <GuidedTour />
+        <MotivationalToastWrapper />
       </div>
     </SidebarProvider>
   );

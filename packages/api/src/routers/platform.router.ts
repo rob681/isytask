@@ -300,6 +300,58 @@ export const platformRouter = router({
       });
     }),
 
+  facturacionSubscriptions: facturacionProcedure
+    .input(
+      z.object({
+        status: z.string().optional(),
+        product: z.enum(["ISYTASK", "ISYSOCIAL"]).optional(),
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(100).default(20),
+      }).optional().default({})
+    )
+    .query(async ({ ctx, input }) => {
+      const where: any = {};
+      if (input.status) where.status = input.status;
+      if (input.product) where.product = input.product;
+
+      const [subscriptions, total, mrr, activeCount, canceledCount] = await Promise.all([
+        ctx.db.subscription.findMany({
+          where,
+          include: {
+            agency: { select: { id: true, name: true, slug: true, billingEmail: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          skip: (input.page - 1) * input.pageSize,
+          take: input.pageSize,
+        }),
+        ctx.db.subscription.count({ where }),
+        // Calculate MRR from active subscriptions
+        ctx.db.subscription.findMany({
+          where: { status: "active" },
+          select: { planTier: true },
+        }),
+        ctx.db.subscription.count({ where: { status: "active" } }),
+        ctx.db.subscription.count({ where: { status: "canceled" } }),
+      ]);
+
+      // Calculate MRR based on plan tiers
+      const planPrices: Record<string, number> = { basic: 29, pro: 79, enterprise: 199 };
+      const totalMrr = mrr.reduce((sum, s) => sum + (planPrices[s.planTier] || 0), 0);
+
+      return {
+        subscriptions,
+        total,
+        page: input.page,
+        totalPages: Math.ceil(total / input.pageSize),
+        metrics: {
+          mrr: totalMrr,
+          activeCount,
+          canceledCount,
+          totalCount: total,
+        },
+      };
+    }),
+
   // ═══════════════════════════════════════════
   // VENTAS endpoints
   // ═══════════════════════════════════════════

@@ -12,10 +12,12 @@ export async function GET() {
   }
 
   const userId = (session.user as any).id;
+  const agencyId = (session.user as any).agencyId as string | null;
 
   const encoder = new TextEncoder();
   let closed = false;
   let lastCheck = new Date();
+  let lastTaskCheck = new Date();
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -29,6 +31,8 @@ export async function GET() {
         }
 
         try {
+          const now = new Date();
+
           // Check for new notifications since last check
           const newNotifs = await db.notification.findMany({
             where: {
@@ -40,7 +44,7 @@ export async function GET() {
             take: 5,
           });
 
-          lastCheck = new Date();
+          lastCheck = now;
 
           if (newNotifs.length > 0) {
             const unreadCount = await db.notification.count({
@@ -62,6 +66,50 @@ export async function GET() {
             controller.enqueue(
               encoder.encode(`event: notification\ndata: ${payload}\n\n`)
             );
+          }
+
+          // Check for task changes in the agency (created, updated, commented)
+          if (agencyId) {
+            const [updatedTasks, newComments] = await Promise.all([
+              db.task.findMany({
+                where: {
+                  agencyId,
+                  updatedAt: { gt: lastTaskCheck },
+                },
+                select: {
+                  id: true,
+                  title: true,
+                  status: true,
+                  updatedAt: true,
+                },
+                take: 10,
+                orderBy: { updatedAt: "desc" },
+              }),
+              db.taskComment.count({
+                where: {
+                  task: { agencyId },
+                  createdAt: { gt: lastTaskCheck },
+                },
+              }),
+            ]);
+
+            lastTaskCheck = now;
+
+            if (updatedTasks.length > 0 || newComments > 0) {
+              const payload = JSON.stringify({
+                type: "task_updates",
+                tasks: updatedTasks.map((t) => ({
+                  id: t.id,
+                  title: t.title,
+                  status: t.status,
+                })),
+                newComments,
+              });
+
+              controller.enqueue(
+                encoder.encode(`event: task_update\ndata: ${payload}\n\n`)
+              );
+            }
           }
 
           // Heartbeat to keep connection alive

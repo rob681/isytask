@@ -22,6 +22,9 @@ import {
   Calendar,
   X,
   UserCircle,
+  Wand2,
+  Share2,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -132,6 +135,9 @@ export default function AdminDashboard() {
   });
   const { data: recentActivity } = trpc.metrics.recentActivity.useQuery(filters);
   const { data: workload } = trpc.metrics.colaboradorWorkload.useQuery(filters);
+
+  // Isysocial cross-product stats
+  const { data: isysocialStats } = trpc.ecosystem.getIsysocialStats.useQuery();
 
   // Client list for filter dropdown
   const { data: clientsData } = trpc.clients.list.useQuery({
@@ -288,10 +294,38 @@ export default function AdminDashboard() {
     (c) => c.id === selectedClientId
   );
 
+  // Check if agency needs onboarding (no services)
+  const { data: onboardingStatus } = trpc.onboarding.getStatus.useQuery();
+
   return (
     <>
       <Topbar title="Dashboard" />
       <div className="p-4 md:p-6 space-y-6">
+        {/* ─── Onboarding CTA ──────────────────────── */}
+        {onboardingStatus && !onboardingStatus.completed && (
+          <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-transparent">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Wand2 className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg">Configura tu agencia con IA</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Crea tus servicios automáticamente. Solo cuéntanos qué tipo de agencia eres.
+                  </p>
+                </div>
+                <Link href="/admin/onboarding">
+                  <Button>
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Comenzar
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {/* ─── Filters bar ─────────────────────────── */}
         <Card>
           <CardContent className="p-4">
@@ -677,6 +711,49 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Isysocial Integration Card */}
+        {isysocialStats?.hasAccess && (
+          <Card className="border-violet-200 bg-gradient-to-br from-violet-50/50 to-fuchsia-50/50">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Share2 className="h-4 w-4 text-violet-600" />
+                  <CardTitle className="text-base text-violet-900">Isysocial</CardTitle>
+                  <Badge className="text-[10px] bg-violet-100 text-violet-700 border-violet-200">Conectado</Badge>
+                </div>
+                <a
+                  href="https://isysocial-web.vercel.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 font-medium"
+                >
+                  Abrir Isysocial <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded-lg bg-white/80 p-3 text-center">
+                  <p className="text-2xl font-bold text-green-600">{isysocialStats.posts?.published ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Publicados</p>
+                </div>
+                <div className="rounded-lg bg-white/80 p-3 text-center">
+                  <p className="text-2xl font-bold text-blue-600">{isysocialStats.posts?.scheduled ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Programados</p>
+                </div>
+                <div className="rounded-lg bg-white/80 p-3 text-center">
+                  <p className="text-2xl font-bold text-amber-600">{isysocialStats.posts?.inReview ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">En revisión</p>
+                </div>
+                <div className="rounded-lg bg-white/80 p-3 text-center">
+                  <p className="text-2xl font-bold text-violet-600">{isysocialStats.ideas?.total ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Ideas</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </>
   );

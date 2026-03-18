@@ -17,6 +17,7 @@ import { agenciesRouter } from "./routers/agencies.router";
 import { platformRouter } from "./routers/platform.router";
 import { ecosystemRouter } from "./routers/ecosystem.router";
 import { billingRouter } from "./routers/billing.router";
+import { onboardingRouter } from "./routers/onboarding.router";
 
 export const appRouter = router({
   auth: authRouter,
@@ -37,6 +38,7 @@ export const appRouter = router({
   platform: platformRouter,
   ecosystem: ecosystemRouter,
   billing: billingRouter,
+  onboarding: onboardingRouter,
 });
 
 export type AppRouter = typeof appRouter;

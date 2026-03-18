@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
-import { TASK_CATEGORY_LABELS, TASK_CATEGORY_BADGE_COLORS } from "@isytask/shared";
-import { Clock, Info, FileText, X, Sparkles, Upload, CheckCircle2, Paperclip, Trash2, Loader2, Bot } from "lucide-react";
+import { TASK_CATEGORY_LABELS, TASK_CATEGORY_BADGE_COLORS, getClientTaskPhrase } from "@isytask/shared";
+import { Clock, Info, FileText, X, Sparkles, Upload, CheckCircle2, Paperclip, Trash2, Loader2, Bot, Rocket } from "lucide-react";
 import { ChatPanel } from "@/components/ai-chat/chat-panel";
 
 export default function NuevaTareaPage() {
@@ -25,6 +25,10 @@ export default function NuevaTareaPage() {
     Array<{ url: string; storagePath: string; fileName: string; fileSize: number; mimeType: string }>
   >([]);
   const [uploading, setUploading] = useState(false);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [aiCategoryTitle, setAiCategoryTitle] = useState("");
+  const [userOverrodeCategory, setUserOverrodeCategory] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: services } = trpc.services.list.useQuery();
   const { data: templates } = trpc.templates.list.useQuery({ activeOnly: true });
@@ -34,6 +38,29 @@ export default function NuevaTareaPage() {
   );
   const selectedService = services?.find((s) => s.id === selectedServiceId);
   const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
+
+  // AI category suggestion — fires when title has 10+ chars
+  const { data: aiCategory, isFetching: aiCategoryLoading } = trpc.tasks.suggestCategory.useQuery(
+    { title: aiCategoryTitle, description, serviceName: selectedService?.name },
+    { enabled: aiCategoryTitle.length >= 10 && !userOverrodeCategory }
+  );
+
+  // Debounce title changes for AI suggestion
+  useEffect(() => {
+    if (userOverrodeCategory) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (title.length >= 10) setAiCategoryTitle(title);
+    }, 800);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [title, description, userOverrodeCategory]);
+
+  // Apply AI suggestion when it arrives
+  useEffect(() => {
+    if (aiCategory?.category && aiCategory.confidence === "high" && !userOverrodeCategory) {
+      setCategory(aiCategory.category as "URGENTE" | "NORMAL" | "LARGO_PLAZO");
+    }
+  }, [aiCategory, userOverrodeCategory]);
 
   // Check if selected service has AI agent enabled
   const { data: agentConfig } = trpc.services.getAgentConfig.useQuery(
@@ -90,7 +117,9 @@ export default function NuevaTareaPage() {
           // Files failed but task was created — still redirect
         }
       }
-      router.push("/cliente");
+      // Show motivational toast before redirect
+      setSuccessToast(getClientTaskPhrase());
+      setTimeout(() => router.push("/cliente"), 3000);
     },
   });
 
@@ -336,11 +365,28 @@ export default function NuevaTareaPage() {
 
                   {/* Category */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Categoría</label>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium">Categoría</label>
+                      {aiCategoryLoading && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Sparkles className="h-3 w-3 animate-pulse text-violet-500" />
+                          Analizando...
+                        </span>
+                      )}
+                      {aiCategory?.confidence === "high" && !userOverrodeCategory && !aiCategoryLoading && (
+                        <span className="flex items-center gap-1 text-xs text-violet-600">
+                          <Sparkles className="h-3 w-3" />
+                          Sugerido por IA
+                        </span>
+                      )}
+                    </div>
                     <select
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={category}
-                      onChange={(e) => setCategory(e.target.value as any)}
+                      onChange={(e) => {
+                        setCategory(e.target.value as any);
+                        setUserOverrodeCategory(true);
+                      }}
                     >
                       <option value="NORMAL">Normal</option>
                       <option value="URGENTE">Urgente</option>
@@ -678,6 +724,34 @@ export default function NuevaTareaPage() {
           </div>
         </div>
       </div>
+
+      {/* Client motivational toast on task creation */}
+      {successToast && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm animate-in slide-in-from-bottom-5 fade-in duration-500">
+          <div className="relative flex items-start gap-3 rounded-xl border p-4 shadow-lg backdrop-blur-sm bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30">
+            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center bg-green-500/20">
+              <Rocket className="h-4 w-4 text-green-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-green-700 dark:text-green-300">
+                ¡Tarea enviada!
+              </p>
+              <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
+                {successToast}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setSuccessToast(null);
+                router.push("/cliente");
+              }}
+              className="flex-shrink-0 p-0.5 rounded-md hover:bg-muted/50 transition-colors"
+            >
+              <X className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

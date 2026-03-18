@@ -29,6 +29,8 @@ import {
   CreditCard,
   TrendingUp,
   Receipt,
+  ExternalLink,
+  Share2,
 } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
@@ -354,6 +356,29 @@ export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: Sid
           );
         })}
       </nav>
+
+      {/* Isysocial cross-app link */}
+      {(role === "ADMIN" || role === "COLABORADOR") && (
+        <div className="px-2 pb-1">
+          <a
+            href="https://isysocial-web.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 text-violet-600 hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950/30",
+              collapsed && "justify-center px-2"
+            )}
+            title={collapsed ? "Abrir Isysocial" : undefined}
+          >
+            <Share2 className="h-5 w-5" />
+            {!collapsed && (
+              <span className="flex items-center gap-1.5">
+                Isysocial <ExternalLink className="h-3 w-3 opacity-50" />
+              </span>
+            )}
+          </a>
+        </div>
+      )}
 
       {/* Footer: Theme + Logout */}
       <div className="p-2 border-t space-y-1">

@@ -50,6 +50,86 @@ export const ecosystemRouter = router({
     };
   }),
 
+  /** Get Isysocial stats for cross-product dashboard card */
+  getIsysocialStats: protectedProcedure.query(async ({ ctx }) => {
+    const agencyId = getAgencyId(ctx);
+
+    // Check if agency has Isysocial subscription
+    const sub = await ctx.db.subscription.findUnique({
+      where: { agencyId_product: { agencyId, product: "ISYSOCIAL" } },
+    });
+
+    if (!sub || !["active", "trial"].includes(sub.status)) {
+      return { hasAccess: false as const };
+    }
+
+    // Cross-schema query to get Isysocial post stats
+    try {
+      const stats = await ctx.db.$queryRawUnsafe<
+        Array<{ status: string; count: bigint }>
+      >(
+        `SELECT status, COUNT(*)::bigint as count
+         FROM isysocial."Post"
+         WHERE "agencyId" = (
+           SELECT id FROM isysocial."Agency"
+           WHERE "name" = (SELECT name FROM public."Agency" WHERE id = $1)
+           LIMIT 1
+         )
+         GROUP BY status`,
+        agencyId
+      );
+
+      const ideaStats = await ctx.db.$queryRawUnsafe<
+        Array<{ status: string; count: bigint }>
+      >(
+        `SELECT status, COUNT(*)::bigint as count
+         FROM isysocial."Idea"
+         WHERE "agencyId" = (
+           SELECT id FROM isysocial."Agency"
+           WHERE "name" = (SELECT name FROM public."Agency" WHERE id = $1)
+           LIMIT 1
+         )
+         GROUP BY status`,
+        agencyId
+      );
+
+      const postCounts: Record<string, number> = {};
+      for (const row of stats) {
+        postCounts[row.status] = Number(row.count);
+      }
+
+      const ideaCounts: Record<string, number> = {};
+      for (const row of ideaStats) {
+        ideaCounts[row.status] = Number(row.count);
+      }
+
+      return {
+        hasAccess: true as const,
+        posts: {
+          published: postCounts["PUBLISHED"] ?? 0,
+          scheduled: postCounts["SCHEDULED"] ?? 0,
+          inReview: postCounts["IN_REVIEW"] ?? 0,
+          draft: postCounts["DRAFT"] ?? 0,
+          total: Object.values(postCounts).reduce((a, b) => a + b, 0),
+        },
+        ideas: {
+          ready: ideaCounts["READY"] ?? 0,
+          inProgress: ideaCounts["IN_PROGRESS"] ?? 0,
+          backlog: ideaCounts["BACKLOG"] ?? 0,
+          total: Object.values(ideaCounts).reduce((a, b) => a + b, 0),
+        },
+      };
+    } catch (error) {
+      // Isysocial schema might not exist yet or tables are empty
+      console.error("[Ecosystem] Cross-schema query failed:", error);
+      return {
+        hasAccess: true as const,
+        posts: { published: 0, scheduled: 0, inReview: 0, draft: 0, total: 0 },
+        ideas: { ready: 0, inProgress: 0, backlog: 0, total: 0 },
+      };
+    }
+  }),
+
   /** Get cross-product discount info */
   getCrossProductDiscount: protectedProcedure.query(async ({ ctx }) => {
     const agencyId = getAgencyId(ctx);

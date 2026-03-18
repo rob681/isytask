@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc/client";
-import { Clock, UserCircle, Users, Info, X, Star, UserPlus } from "lucide-react";
+import { Clock, UserCircle, Users, Info, X, Star, UserPlus, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export default function AdminNuevaTareaPage() {
@@ -41,6 +41,12 @@ export default function AdminNuevaTareaPage() {
 
   const selectedService = services?.find((s) => s.id === selectedServiceId);
   const colaboradores = teamData?.users.filter((u) => u.colaboradorProfile) ?? [];
+
+  // AI smart assignment suggestion
+  const { data: aiAssignment } = trpc.tasks.suggestAssignment.useQuery(
+    { serviceId: selectedServiceId, clientId: selectedClientId || undefined, category },
+    { enabled: !!selectedServiceId }
+  );
 
   const createMutation = trpc.tasks.createForClient.useMutation({
     onSuccess: () => {
@@ -168,6 +174,30 @@ export default function AdminNuevaTareaPage() {
                   Asignar colaboradores
                   <span className="text-muted-foreground font-normal">(opcional)</span>
                 </label>
+
+                {/* AI Suggested assignees */}
+                {aiAssignment?.suggestions && aiAssignment.suggestions.length > 0 && selectedAssignees.length === 0 && (
+                  <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 space-y-2">
+                    <p className="text-xs font-medium text-violet-700 flex items-center gap-1">
+                      <Sparkles className="h-3 w-3" />
+                      Sugeridos por IA
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {aiAssignment.suggestions.map((s) => (
+                        <button
+                          key={s.colaboradorId}
+                          type="button"
+                          onClick={() => handleAddAssignee(s.colaboradorId)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white px-3 py-1 text-xs hover:bg-violet-100 transition-colors"
+                        >
+                          <span className="font-medium">{s.name}</span>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="text-muted-foreground">{s.reasons[0]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Selected assignees */}
                 {selectedAssignees.length > 0 && (

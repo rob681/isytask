@@ -60,8 +60,8 @@ function BillingContent() {
   }
 
   const activeProducts = (data?.subscriptions ?? [])
-    .filter((s) => ["active", "trial"].includes(s.status))
-    .map((s) => s.product);
+    .filter((s: any) => ["active", "trial"].includes(s.status))
+    .map((s: any) => s.product);
 
   const missingProducts = (["ISYTASK", "ISYSOCIAL"] as const).filter(
     (p) => !activeProducts.includes(p)
@@ -109,7 +109,7 @@ function BillingContent() {
               </div>
             ) : (
               <div className="space-y-4">
-                {data.subscriptions.map((sub) => {
+                {data.subscriptions.map((sub: any) => {
                   const statusConf = STATUS_CONFIG[sub.status] || STATUS_CONFIG.active;
                   const StatusIcon = statusConf.icon;
                   const productInfo = PRODUCTS[sub.product as keyof typeof PRODUCTS];
@@ -236,7 +236,7 @@ function BillingContent() {
               <div className="grid md:grid-cols-3 gap-4">
                 {plans.plans.map((plan) => {
                   const isCurrentForAny = plans.currentSubscriptions.some(
-                    (s) => s.planTier === plan.tier
+                    (s: any) => s.planTier === plan.tier
                   );
 
                   return (

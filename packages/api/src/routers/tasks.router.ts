@@ -16,6 +16,7 @@ import {
 import { adminOrPermissionProcedure, getAgencyId } from "../trpc";
 import { notifyTaskStatusChange } from "../lib/notifications";
 import { deleteFile as deleteStorageFile } from "../lib/supabase-storage";
+import { chatCompletion } from "../lib/openrouter";
 
 function calculateElapsedHours(startedAt: Date | null): number {
   if (!startedAt) return 0;
@@ -1094,7 +1095,7 @@ export const tasksRouter = router({
           _count: { select: { comments: true, attachments: true } },
         },
         orderBy: { createdAt: "asc" },
-        take: 200,
+        take: 50,
       });
 
       return tasks;
@@ -1236,5 +1237,131 @@ export const tasksRouter = router({
       return ctx.db.taskAttachment.delete({
         where: { id: input.attachmentId },
       });
+    }),
+
+  // ── AI: Suggest category based on title + description ──
+  suggestCategory: protectedProcedure
+    .input(
+      z.object({
+        title: z.string().min(1),
+        description: z.string().optional(),
+        serviceName: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const prompt = `Clasifica la siguiente tarea en exactamente UNA de estas categorías:
+- URGENTE: Tareas que requieren atención inmediata, con plazos cortos, emergencias, correcciones críticas, o palabras como "urgente", "ya", "hoy", "inmediato", "ASAP"
+- NORMAL: Tareas estándar con plazos razonables, trabajo regular, solicitudes comunes
+- LARGO_PLAZO: Proyectos grandes, estrategia, planificación, rediseños, migraciones, investigación
+
+Tarea:
+- Título: "${input.title}"
+${input.description ? `- Descripción: "${input.description}"` : ""}
+${input.serviceName ? `- Servicio: "${input.serviceName}"` : ""}
+
+Responde SOLO con la categoría: URGENTE, NORMAL, o LARGO_PLAZO`;
+
+      const result = await chatCompletion({
+        db: ctx.db,
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: 20,
+        temperature: 0.1,
+      });
+
+      const category = result?.trim().toUpperCase();
+      if (category === "URGENTE" || category === "NORMAL" || category === "LARGO_PLAZO") {
+        return { category, confidence: "high" as const };
+      }
+      // Fallback
+      return { category: "NORMAL" as const, confidence: "low" as const };
+    }),
+
+  // ── AI: Suggest best collaborator for task assignment ──
+  suggestAssignment: adminProcedure
+    .input(
+      z.object({
+        serviceId: z.string(),
+        clientId: z.string().optional(),
+        category: z.enum(["URGENTE", "NORMAL", "LARGO_PLAZO"]).optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
+
+      // Get all active collaborators (via User relation)
+      const colaboradores = await ctx.db.colaboradorProfile.findMany({
+        where: {
+          user: { agencyId, isActive: true },
+        },
+        include: {
+          user: { select: { name: true } },
+          assignedTasks: {
+            where: { status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA"] } },
+            select: { id: true },
+          },
+        },
+      });
+
+      if (colaboradores.length === 0) return { suggestions: [] };
+
+      // If client specified, check if they have assigned collaborators
+      let preferredIds: string[] = [];
+      if (input.clientId) {
+        const clientAssignments = await ctx.db.colaboradorClientAssignment.findMany({
+          where: { clientId: input.clientId },
+          select: { colaboradorId: true },
+        });
+        preferredIds = clientAssignments.map((a) => a.colaboradorId);
+      }
+
+      // Check recent history: who has handled tasks for this service?
+      const recentServiceTasks = await ctx.db.task.groupBy({
+        by: ["colaboradorId"],
+        where: {
+          agencyId,
+          serviceId: input.serviceId,
+          colaboradorId: { not: null },
+          createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        },
+        _count: true,
+        orderBy: { _count: { colaboradorId: "desc" } },
+      });
+      const serviceExpertIds = new Set(
+        recentServiceTasks.slice(0, 3).map((t) => t.colaboradorId).filter(Boolean)
+      );
+
+      // Score each collaborator
+      const suggestions = colaboradores
+        .map((c) => {
+          let score = 100;
+          const activeTasks = c.assignedTasks.length;
+
+          // Penalize by workload (more tasks = lower score)
+          score -= activeTasks * 15;
+
+          // Bonus if they're the client's assigned collaborator
+          if (preferredIds.includes(c.id)) score += 30;
+
+          // Bonus if they're a service expert
+          if (serviceExpertIds.has(c.id)) score += 20;
+
+          const reasons: string[] = [];
+          if (preferredIds.includes(c.id)) reasons.push("Asignado al cliente");
+          if (serviceExpertIds.has(c.id)) reasons.push("Experto en este servicio");
+          if (activeTasks === 0) reasons.push("Sin tareas activas");
+          else reasons.push(`${activeTasks} tarea${activeTasks > 1 ? "s" : ""} activa${activeTasks > 1 ? "s" : ""}`);
+
+          return {
+            colaboradorId: c.id,
+            name: c.user.name ?? "Sin nombre",
+            score,
+            activeTasks,
+            reasons,
+          };
+        })
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3);
+
+      return { suggestions };
     }),
 });
