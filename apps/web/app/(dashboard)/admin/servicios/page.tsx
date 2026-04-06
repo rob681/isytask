@@ -104,7 +104,7 @@ export default function ServiciosPage() {
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between">
           <p className="text-muted-foreground">
-            Administra los servicios y sus formularios personalizados
+            Los servicios definen los tipos de trabajo que ofreces. Cada servicio incluye un formulario personalizado que tus clientes llenan al crear una tarea.
           </p>
           <Button onClick={() => setShowForm(!showForm)}>
             <Plus className="h-4 w-4 mr-2" />
@@ -264,9 +264,12 @@ export default function ServiciosPage() {
               </Card>
             ))}
             {services?.length === 0 && (
-              <p className="text-muted-foreground col-span-full text-center py-8">
-                No hay servicios registrados
-              </p>
+              <div className="col-span-full text-center py-8 space-y-2">
+                <p className="text-muted-foreground">No hay servicios registrados</p>
+                <p className="text-muted-foreground/60 text-sm max-w-md mx-auto">
+                  Crea tu primer servicio para que los clientes puedan enviar solicitudes. Define los campos que necesitas en cada formulario.
+                </p>
+              </div>
             )}
           </div>
         )}

@@ -160,9 +160,14 @@ export default function AdminTareasPage() {
             {isLoading ? (
               <TableSkeleton rows={6} />
             ) : data?.tasks.length === 0 ? (
-              <p className="text-muted-foreground text-center py-12">
-                No hay tareas con estos filtros
-              </p>
+              <div className="text-center py-12 space-y-2">
+                <p className="text-muted-foreground">
+                  No hay tareas con estos filtros
+                </p>
+                <p className="text-muted-foreground/60 text-sm max-w-md mx-auto">
+                  Los clientes crean nuevas solicitudes desde su portal, o puedes crearlas manualmente con el boton &quot;Nueva Tarea&quot;.
+                </p>
+              </div>
             ) : (
               data?.tasks.map((task) => (
                 <Link key={task.id} href={`/admin/tareas/${task.id}`}>

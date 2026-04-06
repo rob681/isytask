@@ -379,9 +379,12 @@ export default function EquipoPage() {
             {isLoading ? (
               <TableSkeleton rows={5} />
             ) : tasks?.length === 0 ? (
-              <p className="text-muted-foreground text-center py-12">
-                No tienes tareas asignadas
-              </p>
+              <div className="text-center py-12 space-y-2">
+                <p className="text-muted-foreground">No tienes tareas asignadas</p>
+                <p className="text-muted-foreground/60 text-sm max-w-md mx-auto">
+                  Las tareas aparecen aqui cuando el administrador te asigna una. Los cambios de estado notifican automaticamente al cliente.
+                </p>
+              </div>
             ) : (
               tasks?.map((task) => (
                 <Link key={task.id} href={`/equipo/tareas/${task.id}`}>
