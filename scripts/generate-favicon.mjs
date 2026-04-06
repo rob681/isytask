@@ -3,6 +3,7 @@ import { join } from "path";
 
 const ROOT = join(import.meta.dirname, "..");
 
+// Transparent background — only the gradient shapes
 const ICON_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280">
   <defs>
@@ -11,7 +12,6 @@ const ICON_SVG = `
       <stop offset="1" stop-color="#11aa7e"/>
     </linearGradient>
   </defs>
-  <rect width="280" height="280" rx="56" fill="#1a1a2e"/>
   <g transform="translate(140,140) scale(1.08) translate(-120,-141)">
     <rect x="9" y="36.55" width="64.33" height="64.33" rx="32.17" fill="url(#g1)"/>
     <rect x="166.78" y="36.55" width="64.33" height="64.33" rx="32.17" fill="url(#g1)"/>
