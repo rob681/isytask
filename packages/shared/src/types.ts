@@ -34,7 +34,26 @@ export type NotificationType =
   | "NUEVO_COMENTARIO"
   | "CAMBIO_SOLICITADO"
   | "TAREA_PENDIENTE_RECORDATORIO"
-  | "SLA_ALERTA";
+  | "SLA_ALERTA"
+  | "ISYSOCIAL_POST_RECHAZADO"
+  | "ISYSOCIAL_POST_APROBADO"
+  | "ISYSOCIAL_OAUTH_EXPIRADO"
+  | "ISYSOCIAL_CONTENIDO_PUBLICADO";
+
+// Cross-app event types for Isytask ↔ Isysocial integration
+export type CrossAppEventType =
+  // Isysocial → Isytask
+  | "POST_REJECTED"          // Post rechazado → crear/reabrir tarea
+  | "POST_APPROVED"          // Post aprobado → finalizar tarea
+  | "POST_IN_REVIEW"         // Post enviado a revisión → mover tarea a REVISION
+  | "POST_PUBLISHED"         // Post publicado → finalizar tarea
+  | "POST_CHANGES_REQUESTED" // Cliente solicita cambios → tarea a EN_PROGRESO + comment
+  | "OAUTH_EXPIRED"          // Token OAuth expirado → crear tarea urgente
+  // Isytask → Isysocial
+  | "TASK_IN_REVISION"       // Tarea pasa a REVISION → mover post a IN_REVIEW
+  | "TASK_FINALIZADA"        // Tarea finalizada → mover post a APPROVED
+  | "TASK_CANCELLED"         // Tarea cancelada → mover post a CANCELLED
+  | "TASK_CREATED_WITH_POST"; // Tarea recurrente creada → crear Post draft
 
 export type FieldType =
   | "TEXT"

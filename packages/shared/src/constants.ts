@@ -124,6 +124,31 @@ export const NOTIFICATION_TEMPLATES = {
       `La tarea #${d.taskNumber} (${d.serviceType}) está próxima a vencer su SLA. Tiempo restante: ${d.remaining}.`,
     whatsappTemplate: "sla_alerta",
   },
+  // Cross-app notifications (Isysocial integration)
+  ISYSOCIAL_POST_RECHAZADO: {
+    title: "Contenido rechazado en Isysocial",
+    body: (d: Record<string, string>) =>
+      `El post "${d.postTitle}" fue rechazado por el cliente. Se creó la tarea #${d.taskNumber} para revisión.`,
+    whatsappTemplate: "isysocial_post_rechazado",
+  },
+  ISYSOCIAL_POST_APROBADO: {
+    title: "Contenido aprobado en Isysocial",
+    body: (d: Record<string, string>) =>
+      `El post "${d.postTitle}" fue aprobado. La tarea #${d.taskNumber} se marcó como finalizada.`,
+    whatsappTemplate: "isysocial_post_aprobado",
+  },
+  ISYSOCIAL_OAUTH_EXPIRADO: {
+    title: "Conexión OAuth expirada",
+    body: (d: Record<string, string>) =>
+      `La conexión de ${d.network} ha expirado. Se creó la tarea #${d.taskNumber} para renovarla.`,
+    whatsappTemplate: "isysocial_oauth_expirado",
+  },
+  ISYSOCIAL_CONTENIDO_PUBLICADO: {
+    title: "Contenido publicado exitosamente",
+    body: (d: Record<string, string>) =>
+      `El post "${d.postTitle}" fue publicado en ${d.network}. La tarea #${d.taskNumber} se finalizó automáticamente.`,
+    whatsappTemplate: "isysocial_contenido_publicado",
+  },
 } as const;
 
 export const ROLE_LABELS: Record<string, string> = {

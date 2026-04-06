@@ -8,6 +8,7 @@ import { sendWhatsAppMessage } from "./whatsapp";
 interface NotifyParams {
   db: PrismaClient;
   userId: string;
+  agencyId?: string;
   type: NotificationType;
   taskId: string;
   data: Record<string, string>;
@@ -31,7 +32,7 @@ export function statusToNotificationType(
 /**
  * Create in-app notification + send email + send push.
  */
-export async function sendNotification({ db, userId, type, taskId, data }: NotifyParams) {
+export async function sendNotification({ db, userId, agencyId, type, taskId, data }: NotifyParams) {
   const template = NOTIFICATION_TEMPLATES[type];
   if (!template) return;
 
@@ -48,6 +49,7 @@ export async function sendNotification({ db, userId, type, taskId, data }: Notif
     await db.notification.create({
       data: {
         userId,
+        agencyId,
         type,
         channel: "IN_APP",
         title,
@@ -87,6 +89,7 @@ export async function sendNotification({ db, userId, type, taskId, data }: Notif
       await db.notification.create({
         data: {
           userId,
+          agencyId,
           type,
           channel: "EMAIL",
           title,
@@ -112,7 +115,22 @@ export async function sendNotification({ db, userId, type, taskId, data }: Notif
     console.error("[Notification] Push send failed:", error);
   });
 
-  // ─── 4. WhatsApp notification ───────────────────────
+  // ─── 4. Expo Push notification (Mobile) ─────────────
+  // Fire and forget
+  (async () => {
+    try {
+      const { sendExpoPushToUser } = await import("./expo-push");
+      await sendExpoPushToUser(db, userId, {
+        title,
+        body,
+        data: { taskId, type },
+      });
+    } catch (error) {
+      console.error("[Notification] Expo Push send failed:", error);
+    }
+  })();
+
+  // ─── 5. WhatsApp notification ───────────────────────
   // Fire and forget
   (async () => {
     try {
@@ -132,6 +150,7 @@ export async function sendNotification({ db, userId, type, taskId, data }: Notif
         await db.notification.create({
           data: {
             userId,
+            agencyId,
             type,
             channel: "WHATSAPP",
             title,
@@ -159,6 +178,7 @@ export async function notifyTaskStatusChange({
   task: {
     id: string;
     taskNumber: number;
+    agencyId: string;
     clientId: string;
     colaboradorId: string | null;
     client: { userId: string };
@@ -178,6 +198,7 @@ export async function notifyTaskStatusChange({
   await sendNotification({
     db,
     userId: task.client.userId,
+    agencyId: task.agencyId,
     type: notifType,
     taskId: task.id,
     data,
@@ -185,30 +206,28 @@ export async function notifyTaskStatusChange({
 
   // Notify all assigned collaborators (except for CANCELADA which the client triggers)
   if (newStatus !== "CANCELADA") {
-    // Get all assignees from TaskAssignment table
     const assignments = await db.taskAssignment.findMany({
       where: { taskId: task.id },
       include: { colaborador: { select: { userId: true } } },
     });
 
-    const notifiedUserIds = new Set<string>([task.client.userId]); // Don't re-notify client
+    const notifiedUserIds = new Set<string>([task.client.userId]);
 
     for (const assignment of assignments) {
       const userId = assignment.colaborador.userId;
       if (!notifiedUserIds.has(userId)) {
         notifiedUserIds.add(userId);
-        await sendNotification({ db, userId, type: notifType, taskId: task.id, data });
+        await sendNotification({ db, userId, agencyId: task.agencyId, type: notifType, taskId: task.id, data });
       }
     }
 
-    // Also notify the legacy colaboradorId if not already covered by assignments
     if (task.colaboradorId) {
       const colab = await db.colaboradorProfile.findUnique({
         where: { id: task.colaboradorId },
         select: { userId: true },
       });
       if (colab && !notifiedUserIds.has(colab.userId)) {
-        await sendNotification({ db, userId: colab.userId, type: notifType, taskId: task.id, data });
+        await sendNotification({ db, userId: colab.userId, agencyId: task.agencyId, type: notifType, taskId: task.id, data });
       }
     }
   }
@@ -226,6 +245,7 @@ export async function notifyNewComment({
   task: {
     id: string;
     taskNumber: number;
+    agencyId: string;
     clientId: string;
     colaboradorId: string | null;
     client: { userId: string };
@@ -238,15 +258,12 @@ export async function notifyNewComment({
     serviceType: task.service.name,
   };
 
-  // Notify participants who are NOT the comment author
   const recipientSet = new Set<string>();
 
-  // Client
   if (task.client.userId !== commentAuthorId) {
     recipientSet.add(task.client.userId);
   }
 
-  // All assigned collaborators from TaskAssignment
   const assignments = await db.taskAssignment.findMany({
     where: { taskId: task.id },
     include: { colaborador: { select: { userId: true } } },
@@ -257,7 +274,6 @@ export async function notifyNewComment({
     }
   }
 
-  // Legacy: primary collaborator (in case not in assignments)
   if (task.colaboradorId) {
     const colab = await db.colaboradorProfile.findUnique({
       where: { id: task.colaboradorId },
@@ -272,6 +288,7 @@ export async function notifyNewComment({
     await sendNotification({
       db,
       userId,
+      agencyId: task.agencyId,
       type: "NUEVO_COMENTARIO",
       taskId: task.id,
       data,

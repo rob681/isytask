@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
-import { Plus, Clock, FileText, Settings, Shield } from "lucide-react";
+import { Plus, Clock, FileText, Settings, Shield, Pencil, X, Check } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createServiceSchema } from "@isytask/shared";
@@ -21,8 +21,18 @@ const createFormSchema = createServiceSchema.extend({
 
 type CreateForm = z.infer<typeof createFormSchema>;
 
+const editFormSchema = z.object({
+  name: z.string().min(1, "El nombre es requerido"),
+  description: z.string().optional().nullable(),
+  estimatedHours: z.number().int().min(1, "Mínimo 1 hora"),
+  slaHours: z.number().int().min(1).optional().nullable(),
+});
+
+type EditForm = z.infer<typeof editFormSchema>;
+
 export default function ServiciosPage() {
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const utils = trpc.useUtils();
   const { data: services, isLoading } = trpc.services.list.useQuery();
 
@@ -31,6 +41,14 @@ export default function ServiciosPage() {
       utils.services.list.invalidate();
       setShowForm(false);
       reset();
+    },
+  });
+
+  const updateMutation = trpc.services.update.useMutation({
+    onSuccess: () => {
+      utils.services.list.invalidate();
+      setEditingId(null);
+      editReset();
     },
   });
 
@@ -43,9 +61,39 @@ export default function ServiciosPage() {
     resolver: zodResolver(createFormSchema),
   });
 
+  const {
+    register: editRegister,
+    handleSubmit: editHandleSubmit,
+    reset: editReset,
+    formState: { errors: editErrors },
+  } = useForm<EditForm>({
+    resolver: zodResolver(editFormSchema),
+  });
+
   const onSubmit = (data: CreateForm) => {
     createMutation.mutate({
       ...data,
+      slaHours: data.slaHours || null,
+    });
+  };
+
+  const startEditing = (service: any) => {
+    setEditingId(service.id);
+    editReset({
+      name: service.name,
+      description: service.description || "",
+      estimatedHours: service.estimatedHours,
+      slaHours: service.slaHours || null,
+    });
+  };
+
+  const onEditSubmit = (data: EditForm) => {
+    if (!editingId) return;
+    updateMutation.mutate({
+      id: editingId,
+      name: data.name,
+      description: data.description ?? undefined,
+      estimatedHours: data.estimatedHours,
       slaHours: data.slaHours || null,
     });
   };
@@ -126,46 +174,92 @@ export default function ServiciosPage() {
             {services?.map((service) => (
               <Card key={service.id}>
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-semibold">{service.name}</h3>
-                      {service.description && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {service.description}
-                        </p>
-                      )}
-                    </div>
-                    <Badge variant={service.isActive ? "default" : "secondary"}>
-                      {service.isActive ? "Activo" : "Inactivo"}
-                    </Badge>
-                  </div>
-                  <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {service.estimatedHours} hrs
-                    </span>
-                    {(service as any).slaHours && (
-                      <span className="flex items-center gap-1 text-amber-600">
-                        <Shield className="h-3 w-3" />
-                        SLA: {(service as any).slaHours}h
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <FileText className="h-3 w-3" />
-                      {service._count.formFields} campos
-                    </span>
-                    <span className="flex items-center gap-1">
-                      {service._count.tasks} tareas
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <Link href={`/admin/servicios/${service.id}/campos`}>
-                      <Button variant="outline" size="sm">
-                        <Settings className="h-3 w-3 mr-1" />
-                        Configurar Campos
-                      </Button>
-                    </Link>
-                  </div>
+                  {editingId === service.id ? (
+                    <form onSubmit={editHandleSubmit(onEditSubmit)} className="space-y-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-muted-foreground">Editando servicio</span>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingId(null)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium">Nombre</label>
+                        <Input {...editRegister("name")} placeholder="Nombre del servicio" />
+                        {editErrors.name && <p className="text-xs text-destructive">{editErrors.name.message}</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium">Descripción</label>
+                        <Input {...editRegister("description")} placeholder="Descripción" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium">Horas estimadas</label>
+                          <Input {...editRegister("estimatedHours", { valueAsNumber: true })} type="number" />
+                          {editErrors.estimatedHours && <p className="text-xs text-destructive">{editErrors.estimatedHours.message}</p>}
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium">SLA (horas)</label>
+                          <Input {...editRegister("slaHours", { valueAsNumber: true })} type="number" placeholder="Opcional" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="submit" size="sm" disabled={updateMutation.isLoading}>
+                          <Check className="h-3 w-3 mr-1" />
+                          {updateMutation.isLoading ? "Guardando..." : "Guardar"}
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setEditingId(null)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold">{service.name}</h3>
+                          {service.description && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {service.description}
+                            </p>
+                          )}
+                        </div>
+                        <Badge variant={service.isActive ? "default" : "secondary"}>
+                          {service.isActive ? "Activo" : "Inactivo"}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {service.estimatedHours} hrs
+                        </span>
+                        {(service as any).slaHours && (
+                          <span className="flex items-center gap-1 text-amber-600">
+                            <Shield className="h-3 w-3" />
+                            SLA: {(service as any).slaHours}h
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <FileText className="h-3 w-3" />
+                          {service._count.formFields} campos
+                        </span>
+                        <span className="flex items-center gap-1">
+                          {service._count.tasks} tareas
+                        </span>
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => startEditing(service)}>
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Editar
+                        </Button>
+                        <Link href={`/admin/servicios/${service.id}/campos`}>
+                          <Button variant="outline" size="sm">
+                            <Settings className="h-3 w-3 mr-1" />
+                            Configurar Campos
+                          </Button>
+                        </Link>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             ))}

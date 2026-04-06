@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@isytask/db";
+import { getPlatformConfig } from "./platform-config";
 
 interface SendEmailParams {
   db: PrismaClient;
@@ -11,7 +12,7 @@ interface SendEmailParams {
   actionLabel?: string;
 }
 
-/** Get a config value from the database or return default */
+/** Get a config value — agency level */
 async function getConfig(db: PrismaClient, key: string, defaultValue: any = null) {
   const config = await db.systemConfig.findUnique({ where: { key } });
   return config?.value ?? defaultValue;
@@ -104,14 +105,14 @@ export async function sendEmailNotification({
     const emailEnabled = await getConfig(db, "notification_email_enabled", true);
     if (!emailEnabled) return false;
 
-    // Get Resend API key
-    const apiKey = await getConfig(db, "resend_api_key", "");
+    // Get Resend API key from PLATFORM config (Super Admin manages this)
+    const apiKey = await getPlatformConfig(db, "resend_api_key", "");
     if (!apiKey) return false;
 
-    // Get email settings
-    const fromAddress = await getConfig(db, "email_from_address", "noreply@isytask.com");
-    const fromName = await getConfig(db, "email_from_name", "Isytask");
-    const companyName = await getConfig(db, "company_name", "Isytask");
+    // Get email settings from PLATFORM config
+    const fromAddress = await getPlatformConfig(db, "email_from_address", "noreply@isytask.com");
+    const fromName = await getPlatformConfig(db, "email_from_name", "Isytask");
+    const companyName = await getPlatformConfig(db, "company_name", "Isytask");
 
     // Build HTML email
     const html = buildEmailHtml({

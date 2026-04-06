@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Topbar } from "@/components/layout/topbar";
@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc/client";
-import { Clock, UserCircle, Users, Info, X, Star, UserPlus, Sparkles } from "lucide-react";
+import { Clock, UserCircle, Users, Info, X, Star, UserPlus, Sparkles, Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ChatPanel } from "@/components/ai-chat/chat-panel";
 
 export default function AdminNuevaTareaPage() {
   const router = useRouter();
@@ -21,6 +22,10 @@ export default function AdminNuevaTareaPage() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<"URGENTE" | "NORMAL" | "LARGO_PLAZO">("NORMAL");
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
+  const [aiCategoryTitle, setAiCategoryTitle] = useState("");
+  const [userOverrodeCategory, setUserOverrodeCategory] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch data
   const { data: clientsData } = trpc.clients.list.useQuery({
@@ -41,6 +46,48 @@ export default function AdminNuevaTareaPage() {
 
   const selectedService = services?.find((s) => s.id === selectedServiceId);
   const colaboradores = teamData?.users.filter((u) => u.colaboradorProfile) ?? [];
+
+  // AI category suggestion
+  const { data: aiCategory } = trpc.tasks.suggestCategory.useQuery(
+    { title: aiCategoryTitle, description, serviceName: selectedService?.name },
+    { enabled: aiCategoryTitle.length >= 10 && !userOverrodeCategory }
+  );
+
+  useEffect(() => {
+    if (userOverrodeCategory) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (title.length >= 10) setAiCategoryTitle(title);
+    }, 800);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [title, description, userOverrodeCategory]);
+
+  useEffect(() => {
+    if (aiCategory?.category && aiCategory.confidence === "high" && !userOverrodeCategory) {
+      setCategory(aiCategory.category as "URGENTE" | "NORMAL" | "LARGO_PLAZO");
+    }
+  }, [aiCategory, userOverrodeCategory]);
+
+  // AI chat panel
+  const { data: agentConfig } = trpc.services.getAgentConfig.useQuery(
+    { serviceId: selectedServiceId },
+    { enabled: !!selectedServiceId }
+  );
+  const showAIChat = agentConfig?.agentEnabled ?? false;
+
+  const handleAIFieldsUpdate = useCallback((updates: Record<string, any>) => {
+    setFormData((prev) => {
+      const merged = { ...prev };
+      for (const [key, value] of Object.entries(updates)) {
+        if (!prev[key] || prev[key] === "" || prev[key] === undefined) {
+          merged[key] = value;
+        }
+      }
+      return merged;
+    });
+    setHighlightedFields(new Set(Object.keys(updates)));
+    setTimeout(() => setHighlightedFields(new Set()), 1500);
+  }, []);
 
   // AI smart assignment suggestion
   const { data: aiAssignment } = trpc.tasks.suggestAssignment.useQuery(
@@ -101,7 +148,8 @@ export default function AdminNuevaTareaPage() {
   return (
     <>
       <Topbar title="Crear Tarea" />
-      <div className="p-4 md:p-6 max-w-2xl mx-auto">
+      <div className={`p-4 md:p-6 mx-auto ${showAIChat ? "max-w-5xl" : "max-w-2xl"}`}>
+        <div className={showAIChat ? "grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6" : ""}>
         <Card>
           <CardHeader>
             <CardTitle>Nueva Tarea</CardTitle>
@@ -262,11 +310,22 @@ export default function AdminNuevaTareaPage() {
 
               {/* Category */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Categoría</label>
+                <label className="text-sm font-medium flex items-center gap-2">
+                  Categoría
+                  {aiCategory?.category && aiCategory.confidence === "high" && !userOverrodeCategory && (
+                    <span className="inline-flex items-center gap-1 text-xs text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">
+                      <Sparkles className="h-3 w-3" />
+                      Sugerido por IA
+                    </span>
+                  )}
+                </label>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as any)}
+                  onChange={(e) => {
+                    setCategory(e.target.value as any);
+                    setUserOverrodeCategory(true);
+                  }}
                 >
                   <option value="NORMAL">Normal</option>
                   <option value="URGENTE">Urgente</option>
@@ -450,6 +509,32 @@ export default function AdminNuevaTareaPage() {
             </form>
           </CardContent>
         </Card>
+
+        {/* AI Chat Panel */}
+        {showAIChat && selectedServiceId && (
+          <div className="hidden lg:block">
+            <Card className="sticky top-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-violet-500" />
+                  Asistente IA
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Describe la tarea y el asistente te ayudará a completar el formulario
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ChatPanel
+                  serviceId={selectedServiceId}
+                  serviceName={selectedService?.name ?? ""}
+                  formData={formData}
+                  onFieldsUpdate={handleAIFieldsUpdate}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        </div>
       </div>
     </>
   );

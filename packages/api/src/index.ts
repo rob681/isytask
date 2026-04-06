@@ -7,3 +7,43 @@ export {
   buildServiceAgentSystemPrompt,
   buildFieldExtractionTools,
 } from "./lib/openrouter";
+export { handleInboundWhatsApp } from "./lib/whatsapp-inbound";
+export {
+  sendWhatsAppBusinessMessage,
+  validateMetaSignature,
+  parseMetaWebhook,
+  markMessageAsRead,
+} from "./lib/whatsapp-business";
+export {
+  sendWhatsAppMessageHybrid,
+  getWhatsAppProviderStatus,
+  type WhatsAppProvider,
+} from "./lib/whatsapp-router";
+export { analyzeAgencyRisks } from "./lib/risk-engine";
+export { runQATesting, type QAReport, type TestResult } from "./lib/qa-testing";
+
+// Shared DB utilities for cross-product features
+export {
+  getOrganizationByAgencyId,
+  getOrCreateOrganization,
+  getOrganizationSubscriptions,
+  hasActiveSubscription,
+  hasActiveSubscriptionByAgency,
+  hasBothProducts,
+  upsertSubscription as upsertSharedSubscription,
+  getSubscription as getSharedSubscription,
+  queueEvent,
+  fetchPendingEvents,
+  markEventDone,
+  markEventFailed,
+  getEventBusHealth,
+  createSSOSession,
+  consumeSSOSession,
+  cleanupExpiredSSOSessions,
+} from "./lib/shared-db";
+export type {
+  Organization,
+  SharedSubscription,
+  CrossAppEvent,
+  SSOSession,
+} from "./lib/shared-db";

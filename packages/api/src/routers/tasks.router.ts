@@ -17,6 +17,15 @@ import { adminOrPermissionProcedure, getAgencyId } from "../trpc";
 import { notifyTaskStatusChange } from "../lib/notifications";
 import { deleteFile as deleteStorageFile } from "../lib/supabase-storage";
 import { chatCompletion } from "../lib/openrouter";
+import { emitCrossAppEvent } from "../lib/cross-app-sync";
+
+async function getNextTaskNumber(db: any, agencyId: string): Promise<number> {
+  const result = await db.task.aggregate({
+    where: { agencyId },
+    _max: { taskNumber: true },
+  });
+  return (result._max.taskNumber ?? 0) + 1;
+}
 
 function calculateElapsedHours(startedAt: Date | null): number {
   if (!startedAt) return 0;
@@ -212,9 +221,11 @@ export const tasksRouter = router({
       }
 
       const agencyId = getAgencyId(ctx);
+      const taskNumber = await getNextTaskNumber(ctx.db, agencyId);
       const task = await ctx.db.task.create({
         data: {
           agencyId,
+          taskNumber,
           clientId: clientProfile.id,
           serviceId: input.serviceId,
           title: input.title,
@@ -267,6 +278,7 @@ export const tasksRouter = router({
         task: {
           id: task.id,
           taskNumber: task.taskNumber,
+          agencyId: task.agencyId,
           clientId: task.clientId,
           colaboradorId: task.colaboradorId,
           client: { userId: task.client.userId },
@@ -375,9 +387,11 @@ export const tasksRouter = router({
       }
 
       const agencyId = getAgencyId(ctx);
+      const taskNumber = await getNextTaskNumber(ctx.db, agencyId);
       const task = await ctx.db.task.create({
         data: {
           agencyId,
+          taskNumber,
           clientId: clientProfile.id,
           serviceId: input.serviceId,
           title: input.title,
@@ -427,6 +441,7 @@ export const tasksRouter = router({
         task: {
           id: task.id,
           taskNumber: task.taskNumber,
+          agencyId: task.agencyId,
           clientId: task.clientId,
           colaboradorId: task.colaboradorId,
           client: { userId: task.client.userId },
@@ -592,6 +607,7 @@ export const tasksRouter = router({
         task: {
           id: task.id,
           taskNumber: task.taskNumber,
+          agencyId: task.agencyId,
           clientId: task.clientId,
           colaboradorId: task.colaboradorId,
           client: { userId: clientProfile!.userId },
@@ -715,6 +731,7 @@ export const tasksRouter = router({
         task: {
           id: task.id,
           taskNumber: task.taskNumber,
+          agencyId: task.agencyId,
           clientId: task.clientId,
           colaboradorId: task.colaboradorId,
           client: { userId: task.client.userId },
@@ -722,6 +739,34 @@ export const tasksRouter = router({
         },
         newStatus: input.newStatus,
       }).catch(() => {}); // fire and forget
+
+      // Cross-app sync: propagate status to Isysocial (fire-and-forget)
+      if (updated.isysocialPostId) {
+        const eventMap: Record<string, string | undefined> = {
+          REVISION: "TASK_IN_REVISION",
+          FINALIZADA: "TASK_FINALIZADA",
+          CANCELADA: "TASK_CANCELADA",
+        };
+        const crossEvent = eventMap[input.newStatus];
+        if (crossEvent) {
+          emitCrossAppEvent(ctx.db, {
+            sourceApp: "ISYTASK",
+            targetApp: "ISYSOCIAL",
+            eventType: crossEvent as "TASK_IN_REVISION" | "TASK_FINALIZADA" | "TASK_CANCELADA",
+            agencyId: task.agencyId,
+            taskId: task.id,
+            isysocialPostId: updated.isysocialPostId,
+            payload: {
+              taskId: task.id,
+              taskNumber: task.taskNumber,
+              postId: updated.isysocialPostId,
+              status: input.newStatus,
+              serviceName: task.service.name,
+              clientEmail: task.client.user.email,
+            },
+          }).catch(() => {}); // fire and forget
+        }
+      }
 
       return updated;
     }),
@@ -1159,6 +1204,7 @@ export const tasksRouter = router({
         task: {
           id: task.id,
           taskNumber: task.taskNumber,
+          agencyId: task.agencyId,
           clientId: task.clientId,
           colaboradorId: task.colaboradorId,
           client: { userId: task.client.userId },

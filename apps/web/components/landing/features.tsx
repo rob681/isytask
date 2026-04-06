@@ -4,15 +4,29 @@ import {
   ClipboardList,
   Users,
   FileText,
-  LayoutGrid,
+  MessageSquare,
   BarChart3,
   RefreshCw,
-  Building2,
+  ShieldCheck,
   Bell,
 } from "lucide-react";
 import { ScrollAnimation } from "./scroll-animation";
 
 const features = [
+  {
+    icon: <ShieldCheck className="h-6 w-6" />,
+    title: "IA de prediccion de riesgos",
+    description:
+      "Detecta proyectos en peligro antes de que se retrasen. Semaforo de salud con alertas y sugerencias automaticas.",
+    isNew: true,
+  },
+  {
+    icon: <MessageSquare className="h-6 w-6" />,
+    title: "WhatsApp integrado",
+    description:
+      "Los mensajes de WhatsApp de tus clientes se convierten automaticamente en comentarios de tarea con IA.",
+    isNew: true,
+  },
   {
     icon: <ClipboardList className="h-6 w-6" />,
     title: "Gestion de tareas",
@@ -32,12 +46,6 @@ const features = [
       "Configura formularios personalizados por servicio con campos arrastables y validacion automatica.",
   },
   {
-    icon: <LayoutGrid className="h-6 w-6" />,
-    title: "Kanban y vistas",
-    description:
-      "Visualiza tus tareas en tablero Kanban, lista o calendario. Elige la vista que mejor te funcione.",
-  },
-  {
     icon: <BarChart3 className="h-6 w-6" />,
     title: "Reportes de rentabilidad",
     description:
@@ -48,12 +56,6 @@ const features = [
     title: "Automatizacion",
     description:
       "Programa tareas recurrentes y usa plantillas para ahorrar tiempo en procesos repetitivos.",
-  },
-  {
-    icon: <Building2 className="h-6 w-6" />,
-    title: "Multi-agencia",
-    description:
-      "Gestiona multiples agencias desde un solo lugar. Cada una con sus propios equipos y clientes.",
   },
   {
     icon: <Bell className="h-6 w-6" />,
@@ -73,8 +75,8 @@ export function Features() {
             <span className="gradient-text">tu agencia</span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Herramientas disenadas para que organices tu equipo, atiendas a tus
-            clientes y hagas crecer tu negocio.
+            IA predictiva, WhatsApp integrado y herramientas disenadas para que
+            organices tu equipo y hagas crecer tu negocio.
           </p>
         </ScrollAnimation>
 
@@ -82,8 +84,15 @@ export function Features() {
           {features.map((feature, index) => (
             <ScrollAnimation key={feature.title} delay={index * 0.05}>
               <div className="glass-card card-hover p-6 h-full">
-                <div className="inline-flex p-2.5 rounded-xl bg-primary/10 mb-4">
-                  <span className="gradient-text">{feature.icon}</span>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="inline-flex p-2.5 rounded-xl bg-primary/10">
+                    <span className="gradient-text">{feature.icon}</span>
+                  </div>
+                  {(feature as any).isNew && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full gradient-primary text-white">
+                      Nuevo
+                    </span>
+                  )}
                 </div>
                 <h3 className="font-display font-bold text-base mb-2">
                   {feature.title}

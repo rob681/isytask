@@ -237,10 +237,18 @@ export const recurringRouter = router({
           dueAt.setHours(dueAt.getHours() + rt.service.slaHours);
         }
 
+        // Calculate per-agency task number
+        const maxResult = await ctx.db.task.aggregate({
+          where: { agencyId: rt.agencyId },
+          _max: { taskNumber: true },
+        });
+        const taskNumber = (maxResult._max.taskNumber ?? 0) + 1;
+
         // Create the task
         const task = await ctx.db.task.create({
           data: {
             agencyId: rt.agencyId,
+            taskNumber,
             clientId: rt.clientId,
             serviceId: rt.serviceId,
             title: rt.title,
@@ -294,6 +302,7 @@ export const recurringRouter = router({
           task: {
             id: task.id,
             taskNumber: task.taskNumber,
+            agencyId: rt.agencyId,
             clientId: task.clientId,
             colaboradorId: task.colaboradorId,
             client: { userId: task.client.userId },

@@ -50,6 +50,7 @@ export const commentsRouter = router({
           task: {
             id: task.id,
             taskNumber: task.taskNumber,
+            agencyId: task.agencyId,
             clientId: task.clientId,
             colaboradorId: task.colaboradorId,
             client: { userId: task.client.userId },

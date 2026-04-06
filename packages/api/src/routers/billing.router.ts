@@ -208,41 +208,104 @@ export const billingRouter = router({
       plans: [
         {
           tier: "basic",
-          name: "Básico",
+          name: "Starter",
           price: 29,
+          annualPrice: 278, // $290/año → $278 efectivo (4% adicional para números redondos)
+          annualSavings: 60, // Ahorro anual
+          description: "Para agencias pequeñas y freelancers",
           features: [
-            "Hasta 5 colaboradores",
-            "Hasta 20 clientes",
-            "Tareas ilimitadas",
+            "Hasta 3 usuarios internos",
+            "Colaboradores externos ilimitados",
+            "Hasta 50 tareas/mes",
+            "Formularios dinámicos",
+            "1 integración WhatsApp",
+            "IA categorización básica",
             "Soporte por email",
           ],
+          limits: {
+            internalUsers: 3,
+            tasksPerMonth: 50,
+            whatsappIntegrations: 1,
+            ai: "basic",
+          },
         },
         {
           tier: "pro",
-          name: "Pro",
+          name: "Profesional",
           price: 79,
+          annualPrice: 758, // $790/año → $758 efectivo
+          annualSavings: 190,
+          description: "Para agencias en crecimiento",
           popular: true,
           features: [
-            "Hasta 15 colaboradores",
-            "Hasta 100 clientes",
+            "Hasta 10 usuarios internos",
+            "Colaboradores externos ilimitados",
             "Tareas ilimitadas",
-            "Campos dinámicos avanzados",
-            "Reportes de rentabilidad",
-            "Soporte prioritario",
+            "Formularios dinámicos avanzados",
+            "5 integraciones WhatsApp",
+            "IA completa (categorización + sugerencias + chat)",
+            "Analytics & predicción de riesgos",
+            "Soporte por email + Slack",
           ],
+          limits: {
+            internalUsers: 10,
+            tasksPerMonth: -1, // unlimited
+            whatsappIntegrations: 5,
+            ai: "full",
+          },
         },
         {
           tier: "enterprise",
           name: "Enterprise",
-          price: null,
+          price: 199,
+          annualPrice: 1910, // $199*12*0.8
+          annualSavings: 478,
+          description: "Para grandes agencias y multi-cuenta",
           features: [
-            "Colaboradores ilimitados",
-            "Clientes ilimitados",
+            "Usuarios internos ilimitados",
+            "Colaboradores externos ilimitados",
             "Tareas ilimitadas",
-            "API personalizada",
-            "Soporte dedicado 24/7",
-            "Onboarding personalizado",
+            "Multi-agencia (cuentas hermanas)",
+            "Analytics avanzados & BI",
+            "SSO / SAML",
+            "Soporte prioritario 24/7",
+            "SLA 99.9%",
+            "API completo + webhooks",
+            "Custom branding",
+            "Account manager dedicado",
           ],
+          limits: {
+            internalUsers: -1, // unlimited
+            tasksPerMonth: -1, // unlimited
+            whatsappIntegrations: -1, // unlimited
+            ai: "full",
+          },
+        },
+      ],
+      addons: [
+        {
+          key: "extra_user",
+          name: "Usuario Extra",
+          price: 9,
+          description: "Agrega un usuario interno adicional",
+        },
+        {
+          key: "whatsapp_premium",
+          name: "WhatsApp Premium",
+          price: 19,
+          description: "Mayor throughput y más números WhatsApp",
+        },
+        {
+          key: "advanced_ai",
+          name: "IA Avanzada",
+          price: 29,
+          description: "Más tokens mensuales de IA",
+        },
+        {
+          key: "isystory_studio",
+          name: "Isystory Studio",
+          price: 39,
+          description: "Editor de stories para Instagram",
         },
       ],
     };

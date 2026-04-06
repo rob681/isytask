@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { adminOrPermissionProcedure, protectedProcedure, router } from "../trpc";
+import { PLATFORM_KEYS } from "../lib/platform-config";
 
 const configProcedure = adminOrPermissionProcedure("manage_config");
 
@@ -8,15 +10,20 @@ const DEFAULT_TIME_BLOCKS = [
   { start: "16:00", end: "19:00" },
 ];
 
+/**
+ * Agency-level config defaults.
+ * Platform-managed keys (email, AI, WhatsApp Meta) are NO LONGER here.
+ */
 const CONFIG_DEFAULTS: Record<string, any> = {
   default_monthly_task_limit: 10,
   default_revision_limit_per_task: 3,
   company_name: "Isytask",
-  company_logo_url: null,
-  company_logo_white_url: null,
+  // Notification toggles (agencies can enable/disable channels)
   notification_email_enabled: true,
   notification_whatsapp_enabled: false,
   notification_inapp_enabled: true,
+  notification_push_enabled: false,
+  // Business hours
   business_hours: {
     monday:    { enabled: true,  blocks: [...DEFAULT_TIME_BLOCKS] },
     tuesday:   { enabled: true,  blocks: [...DEFAULT_TIME_BLOCKS] },
@@ -27,35 +34,25 @@ const CONFIG_DEFAULTS: Record<string, any> = {
     sunday:    { enabled: false, blocks: [] },
   },
   pending_task_reminder_hours: 24,
-  // Email config (Resend)
-  resend_api_key: "",
-  email_from_address: "noreply@isytask.com",
-  email_from_name: "Isytask",
-  // WhatsApp (Twilio)
+  // WhatsApp Twilio (agency's own number — optional)
   twilio_account_sid: "",
   twilio_auth_token: "",
   twilio_whatsapp_from: "",
-  // Push notifications
+  // Push notifications (VAPID)
   vapid_public_key: "",
   vapid_private_key: "",
   vapid_subject: "mailto:admin@isytask.com",
-  notification_push_enabled: false,
   // SLA
   sla_alert_threshold_hours: 2,
+  // Regional
   timezone: "America/Mexico_City",
   time_format: "24h",
   date_format: "DD/MM/YYYY",
   language: "es",
-  // AI Agent (OpenRouter)
-  openrouter_api_key: "",
-  ai_agent_enabled: false,
-  ai_agent_default_model: "openai/gpt-4o-mini",
 };
 
 const PUBLIC_KEYS = [
   "company_name",
-  "company_logo_url",
-  "company_logo_white_url",
   "business_hours",
   "timezone",
   "time_format",
@@ -63,8 +60,13 @@ const PUBLIC_KEYS = [
   "language",
 ];
 
+/** Check if a key is platform-managed (Super Admin only) */
+function isPlatformKey(key: string): boolean {
+  return (PLATFORM_KEYS as readonly string[]).includes(key);
+}
+
 export const configRouter = router({
-  // Public config (for sidebar logo, etc.) - only requires authentication, not admin
+  // Public config (for sidebar logo, etc.)
   getPublic: protectedProcedure.query(async ({ ctx }) => {
     const configs = await ctx.db.systemConfig.findMany({
       where: { key: { in: PUBLIC_KEYS } },
@@ -85,12 +87,22 @@ export const configRouter = router({
     for (const c of configs) {
       configMap[c.key] = c.value;
     }
+    // Remove platform keys from agency view
+    for (const key of PLATFORM_KEYS) {
+      delete configMap[key];
+    }
     return configMap;
   }),
 
   get: configProcedure
     .input(z.object({ key: z.string() }))
     .query(async ({ ctx, input }) => {
+      if (isPlatformKey(input.key)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Esta configuracion es gestionada por el Super Administrador.",
+        });
+      }
       const config = await ctx.db.systemConfig.findUnique({
         where: { key: input.key },
       });
@@ -98,13 +110,14 @@ export const configRouter = router({
     }),
 
   set: configProcedure
-    .input(
-      z.object({
-        key: z.string(),
-        value: z.any(),
-      })
-    )
+    .input(z.object({ key: z.string(), value: z.any() }))
     .mutation(async ({ ctx, input }) => {
+      if (isPlatformKey(input.key)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Esta configuracion es gestionada por el Super Administrador.",
+        });
+      }
       return ctx.db.systemConfig.upsert({
         where: { key: input.key },
         create: { key: input.key, value: input.value },
@@ -115,7 +128,12 @@ export const configRouter = router({
   setMany: configProcedure
     .input(z.record(z.string(), z.any()))
     .mutation(async ({ ctx, input }) => {
-      const operations = Object.entries(input).map(([key, value]) =>
+      // Filter out platform keys
+      const safeEntries = Object.entries(input).filter(
+        ([key]) => !isPlatformKey(key)
+      );
+
+      const operations = safeEntries.map(([key, value]) =>
         ctx.db.systemConfig.upsert({
           where: { key },
           create: { key, value: value as any },

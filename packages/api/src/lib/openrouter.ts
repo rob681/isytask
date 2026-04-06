@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@isytask/db";
+import { getPlatformConfig } from "./platform-config";
 
 // ── Types ──
 
@@ -169,13 +170,13 @@ export async function streamChatCompletion({
   model?: string;
 }): Promise<ReadableStream | null> {
   try {
-    const apiKey = await getConfig(db, "openrouter_api_key", "");
+    const apiKey = await getPlatformConfig(db, "openrouter_api_key", "");
     if (!apiKey) {
       console.error("[OpenRouter] No API key configured");
       return null;
     }
 
-    const defaultModel = await getConfig(
+    const defaultModel = await getPlatformConfig(
       db,
       "ai_agent_default_model",
       "openai/gpt-4o-mini"
@@ -188,7 +189,7 @@ export async function streamChatCompletion({
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://isytask-web.vercel.app",
+          "HTTP-Referer": "https://www.isytask.com",
           "X-Title": "Isytask",
         },
         body: JSON.stringify({
@@ -323,13 +324,13 @@ export async function chatCompletion({
   temperature?: number;
 }): Promise<string | null> {
   try {
-    const apiKey = await getConfig(db, "openrouter_api_key", "");
+    const apiKey = await getPlatformConfig(db, "openrouter_api_key", "");
     if (!apiKey) {
       console.error("[OpenRouter] No API key configured");
       return null;
     }
 
-    const defaultModel = await getConfig(
+    const defaultModel = await getPlatformConfig(
       db,
       "ai_agent_default_model",
       "openai/gpt-4o-mini"
@@ -342,7 +343,7 @@ export async function chatCompletion({
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://isytask-web.vercel.app",
+          "HTTP-Referer": "https://www.isytask.com",
           "X-Title": "Isytask",
         },
         body: JSON.stringify({

@@ -171,6 +171,8 @@ export const registerAgencySchema = z.object({
   email: z.string().email("Email invalido"),
   password: z.string().min(8, "Minimo 8 caracteres"),
   confirmPassword: z.string(),
+  honeypot: z.string().max(0).optional(),
+  recaptchaToken: z.string().min(1, "reCAPTCHA requerido"),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Las contrasenas no coinciden",
   path: ["confirmPassword"],
@@ -215,4 +217,24 @@ export const subscriptionUpdateSchema = z.object({
   product: z.enum(["ISYTASK", "ISYSOCIAL"]),
   planTier: z.enum(["basic", "pro", "enterprise"]),
   billingEmail: z.string().email().optional(),
+});
+
+// ── Video Comments ──
+
+export const createVideoCommentSchema = z.object({
+  mediaType: z.enum(["POST_MEDIA", "TASK_FILE"]),
+  mediaId: z.string(),
+  content: z.string().min(1, "Comentario requerido"),
+  timecodeSeconds: z.number().optional(),
+  isInternal: z.boolean().default(false),
+});
+
+export const updateVideoCommentSchema = z.object({
+  commentId: z.string(),
+  content: z.string().optional(),
+  isResolved: z.boolean().optional(),
+});
+
+export const deleteVideoCommentSchema = z.object({
+  commentId: z.string(),
 });

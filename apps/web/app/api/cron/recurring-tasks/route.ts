@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@isytask/db";
+import { emitCrossAppEvent } from "../../../../../../packages/api/src/lib/cross-app-sync";
 
 function calculateNextRunAt(
   recurrenceType: "DAILY" | "WEEKLY" | "MONTHLY",
@@ -116,9 +117,17 @@ export async function POST(req: NextRequest) {
           where: { id: rt.clientId },
         });
 
+        // Calculate per-agency task number
+        const maxResult = await db.task.aggregate({
+          where: { agencyId: rt.agencyId },
+          _max: { taskNumber: true },
+        });
+        const taskNumber = (maxResult._max.taskNumber ?? 0) + 1;
+
         const task = await db.task.create({
           data: {
             agencyId: rt.agencyId,
+            taskNumber,
             clientId: rt.clientId,
             serviceId: rt.serviceId,
             title: rt.title,
@@ -164,6 +173,7 @@ export async function POST(req: NextRequest) {
         await db.notification.create({
           data: {
             userId: task.client.userId,
+            agencyId: rt.agencyId,
             type: "TAREA_RECIBIDA",
             channel: "IN_APP",
             title: "Nueva tarea recibida",
@@ -172,6 +182,30 @@ export async function POST(req: NextRequest) {
             sentAt: new Date(),
           },
         }).catch(() => {});
+
+        // Cross-app: auto-create Post draft in Isysocial if service is content-related
+        const isContentService = /redes|social|contenido|post|story|stories|instagram|facebook/i.test(
+          rt.service.name + " " + (rt.service.description ?? "")
+        );
+        if (isContentService) {
+          const clientUser = await db.user.findUnique({
+            where: { id: rt.client.user.id },
+            select: { email: true },
+          });
+          emitCrossAppEvent(db, {
+            sourceApp: "ISYTASK",
+            targetApp: "ISYSOCIAL",
+            eventType: "TASK_CREATED_WITH_POST",
+            agencyId: rt.agencyId,
+            taskId: task.id,
+            payload: {
+              taskId: task.id,
+              taskNumber: task.taskNumber,
+              serviceName: task.service.name,
+              clientEmail: clientUser?.email ?? "",
+            },
+          }).catch(() => {}); // fire and forget
+        }
 
         results.push({
           recurringTaskId: rt.id,

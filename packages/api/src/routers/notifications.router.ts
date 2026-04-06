@@ -10,10 +10,12 @@ export const notificationsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      const agencyId = ctx.session.user.agencyId;
       return ctx.db.notification.findMany({
         where: {
           userId: ctx.session.user.id,
           channel: "IN_APP",
+          ...(agencyId ? { agencyId } : {}),
         },
         orderBy: { createdAt: "desc" },
         skip: (input.page - 1) * input.pageSize,
@@ -22,11 +24,13 @@ export const notificationsRouter = router({
     }),
 
   getUnreadCount: protectedProcedure.query(async ({ ctx }) => {
+    const agencyId = ctx.session.user.agencyId;
     return ctx.db.notification.count({
       where: {
         userId: ctx.session.user.id,
         channel: "IN_APP",
         isRead: false,
+        ...(agencyId ? { agencyId } : {}),
       },
     });
   }),
@@ -41,10 +45,12 @@ export const notificationsRouter = router({
     }),
 
   markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
+    const agencyId = ctx.session.user.agencyId;
     return ctx.db.notification.updateMany({
       where: {
         userId: ctx.session.user.id,
         isRead: false,
+        ...(agencyId ? { agencyId } : {}),
       },
       data: { isRead: true },
     });

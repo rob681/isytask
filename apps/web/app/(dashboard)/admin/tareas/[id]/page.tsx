@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Topbar } from "@/components/layout/topbar";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
+import { VideoReviewPanel } from "@/components/video/video-review-panel";
 import {
   TASK_STATUS_LABELS,
   TASK_STATUS_COLORS,
@@ -40,6 +41,7 @@ import {
   X,
 } from "lucide-react";
 import { SlaIndicator } from "@/components/sla-indicator";
+import { TaskRiskBadge } from "@/components/task-risk-badge";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -237,6 +239,7 @@ export default function AdminTaskDetailPage() {
               >
                 {TASK_STATUS_LABELS[task.status]}
               </Badge>
+              <TaskRiskBadge taskId={task.id} />
             </div>
             <div className="flex items-center gap-3 mt-1">
               <p className="text-sm text-muted-foreground">
@@ -455,6 +458,19 @@ export default function AdminTaskDetailPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Video Review Panel — if video attachment exists */}
+            {task.attachments.some((a) => a.mimeType?.startsWith("video/")) && (
+              <div className="h-[600px]">
+                <VideoReviewPanel
+                  videoUrl={task.attachments.find((a) => a.mimeType?.startsWith("video/"))?.fileUrl || ""}
+                  mediaType="TASK_FILE"
+                  mediaId={task.id}
+                  initialComments={[]}
+                  readOnly={false}
+                />
+              </div>
+            )}
 
             {/* Form data — uses TaskResponse if available, fallback to formData */}
             {((task.responses && task.responses.length > 0) || (formData && Object.keys(formData).length > 0)) && (

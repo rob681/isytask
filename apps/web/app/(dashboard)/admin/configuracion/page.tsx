@@ -54,6 +54,7 @@ type BusinessHours = Record<string, DayConfig>;
 
 export default function ConfiguracionPage() {
   const { data: config, isLoading } = trpc.config.getAll.useQuery();
+  const { data: agencyLogo } = trpc.agencies.getMyAgencyLogo.useQuery();
   const utils = trpc.useUtils();
 
   const [values, setValues] = useState<Record<string, any>>({});
@@ -65,9 +66,14 @@ export default function ConfiguracionPage() {
 
   useEffect(() => {
     if (config) {
-      setValues(config);
+      setValues((prev) => ({
+        ...config,
+        // Load agency logos instead of global config
+        company_logo_url: prev.company_logo_url ?? agencyLogo?.logoUrl ?? config.company_logo_url,
+        company_logo_white_url: prev.company_logo_white_url ?? agencyLogo?.logoWhiteUrl ?? config.company_logo_white_url,
+      }));
     }
-  }, [config]);
+  }, [config, agencyLogo]);
 
   // ─── Logo upload handler ────────────────────────────────
   async function handleLogoUpload(
@@ -118,13 +124,29 @@ export default function ConfiguracionPage() {
     },
   });
 
+  const saveLogoMutation = trpc.agencies.updateMyAgencyLogo.useMutation({
+    onSuccess: () => {
+      utils.agencies.getMyAgencyLogo.invalidate();
+    },
+  });
+
   const updateValue = (key: string, value: any) => {
     setValues((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
   };
 
   const handleSave = () => {
-    saveMutation.mutate(values);
+    // Save logos to agency (per-agency), everything else to system config (global)
+    const { company_logo_url, company_logo_white_url, ...configValues } = values;
+
+    // Save agency logos
+    saveLogoMutation.mutate({
+      logoUrl: company_logo_url ?? null,
+      logoWhiteUrl: company_logo_white_url ?? null,
+    });
+
+    // Save other config values
+    saveMutation.mutate(configValues);
   };
 
   // ─── Business Hours helpers ────────────────────────────
@@ -636,8 +658,21 @@ export default function ConfiguracionPage() {
           </CardContent>
         </Card>
 
-        {/* Email Configuration (Resend) */}
-        <Card>
+        {/* Email Configuration — Now managed by Super Admin */}
+        <Card className="opacity-70">
+          <CardHeader>
+            <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg mb-3">
+              <span className="text-blue-600">ℹ️</span>
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                La configuracion de Email, IA y WhatsApp Business es gestionada por el administrador de la plataforma.
+                Aqui solo puedes activar o desactivar los canales de notificacion.
+              </p>
+            </div>
+          </CardHeader>
+        </Card>
+
+        {/* Email Configuration (Resend) — HIDDEN: managed by Super Admin */}
+        <Card className="hidden">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Mail className="h-5 w-5 text-muted-foreground" />
@@ -743,8 +778,8 @@ export default function ConfiguracionPage() {
           </Card>
         )}
 
-        {/* AI Agent Configuration (OpenRouter) */}
-        <Card>
+        {/* AI Agent Configuration — HIDDEN: managed by Super Admin */}
+        <Card className="hidden">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-muted-foreground" />

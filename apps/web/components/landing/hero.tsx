@@ -49,7 +49,7 @@ export function Hero() {
             <motion.div variants={item}>
               <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border bg-card/60 backdrop-blur-sm text-sm font-medium text-muted-foreground mb-6">
                 <span className="w-2 h-2 rounded-full gradient-primary animate-pulse" />
-                Plataforma SaaS para agencias
+                Plataforma con IA para agencias
               </span>
             </motion.div>
 
@@ -65,9 +65,9 @@ export function Hero() {
               variants={item}
               className="text-lg sm:text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed"
             >
-              La plataforma todo-en-uno para agencias que quieren organizar
-              tareas, clientes y equipos en un solo lugar. Menos desorden, mas
-              resultados.
+              La plataforma con IA para agencias que quieren organizar tareas,
+              predecir riesgos y comunicarse con clientes por WhatsApp. Menos
+              caos, mas resultados.
             </motion.p>
 
             <motion.div

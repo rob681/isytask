@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
+import { VideoReviewPanel } from "@/components/video/video-review-panel";
 import {
   TASK_STATUS_LABELS,
   TASK_STATUS_COLORS,
@@ -340,6 +341,19 @@ export default function EquipoTaskDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Video Review Panel — if video attachment exists */}
+            {task.attachments.some((a) => a.mimeType?.startsWith("video/")) && (
+              <div className="h-[600px]">
+                <VideoReviewPanel
+                  videoUrl={task.attachments.find((a) => a.mimeType?.startsWith("video/"))?.fileUrl || ""}
+                  mediaType="TASK_FILE"
+                  mediaId={task.id}
+                  initialComments={[]}
+                  readOnly={false}
+                />
+              </div>
+            )}
 
             {/* Form data — uses TaskResponse if available, fallback to formData */}
             {((task.responses && task.responses.length > 0) || (formData && Object.keys(formData).length > 0)) && (

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { superAdminProcedure, router } from "../trpc";
+import { superAdminProcedure, adminProcedure, protectedProcedure, router } from "../trpc";
 import { createAgencySchema, updateAgencySchema } from "@isytask/shared";
 import { createToken } from "../lib/tokens";
 import { sendEmailNotification } from "../lib/email";
@@ -203,4 +203,120 @@ export const agenciesRouter = router({
       topAgencies,
     };
   }),
+
+  /** Get branding config for the current user's agency (mobile + web) */
+  getBranding: protectedProcedure.query(async ({ ctx }) => {
+    const agencyId = ctx.session.user.agencyId;
+    if (!agencyId) {
+      return {
+        agencyName: null,
+        logoUrl: null,
+        logoWhiteUrl: null,
+        hideBranding: false,
+        customAppName: null,
+        planTier: "basic",
+      };
+    }
+
+    const agency = await ctx.db.agency.findUnique({
+      where: { id: agencyId },
+      select: {
+        name: true,
+        logoUrl: true,
+        logoWhiteUrl: true,
+        hideBranding: true,
+        customAppName: true,
+        planTier: true,
+      },
+    });
+
+    // Only Enterprise plan can hide branding
+    const isEnterprise = agency?.planTier === "enterprise";
+
+    return {
+      agencyName: agency?.name ?? null,
+      logoUrl: agency?.logoUrl ?? null,
+      logoWhiteUrl: agency?.logoWhiteUrl ?? null,
+      hideBranding: isEnterprise && (agency?.hideBranding ?? false),
+      customAppName: isEnterprise ? (agency?.customAppName ?? null) : null,
+      planTier: agency?.planTier ?? "basic",
+    };
+  }),
+
+  /** Update branding settings (admin only, enterprise plan) */
+  updateBranding: adminProcedure
+    .input(
+      z.object({
+        hideBranding: z.boolean().optional(),
+        customAppName: z.string().nullable().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const agencyId = ctx.session.user.agencyId;
+      if (!agencyId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No agency found" });
+      }
+
+      // Verify enterprise plan
+      const agency = await ctx.db.agency.findUnique({
+        where: { id: agencyId },
+        select: { planTier: true },
+      });
+
+      if (agency?.planTier !== "enterprise") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "White-labeling solo disponible en plan Enterprise",
+        });
+      }
+
+      return ctx.db.agency.update({
+        where: { id: agencyId },
+        data: {
+          ...(input.hideBranding !== undefined && { hideBranding: input.hideBranding }),
+          ...(input.customAppName !== undefined && { customAppName: input.customAppName }),
+        },
+        select: { hideBranding: true, customAppName: true },
+      });
+    }),
+
+  /** Get logo for the current user's agency */
+  getMyAgencyLogo: protectedProcedure.query(async ({ ctx }) => {
+    const agencyId = ctx.session.user.agencyId;
+    if (!agencyId) return { logoUrl: null, logoWhiteUrl: null };
+
+    const agency = await ctx.db.agency.findUnique({
+      where: { id: agencyId },
+      select: { logoUrl: true, logoWhiteUrl: true },
+    });
+
+    return {
+      logoUrl: agency?.logoUrl ?? null,
+      logoWhiteUrl: agency?.logoWhiteUrl ?? null,
+    };
+  }),
+
+  /** Update logo for the current user's agency (admin only) */
+  updateMyAgencyLogo: adminProcedure
+    .input(
+      z.object({
+        logoUrl: z.string().nullable().optional(),
+        logoWhiteUrl: z.string().nullable().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const agencyId = ctx.session.user.agencyId;
+      if (!agencyId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No agency found" });
+      }
+
+      return ctx.db.agency.update({
+        where: { id: agencyId },
+        data: {
+          ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
+          ...(input.logoWhiteUrl !== undefined ? { logoWhiteUrl: input.logoWhiteUrl } : {}),
+        },
+        select: { logoUrl: true, logoWhiteUrl: true },
+      });
+    }),
 });

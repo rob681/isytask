@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
+import { VideoReviewPanel } from "@/components/video/video-review-panel";
 import {
   TASK_STATUS_LABELS,
   TASK_STATUS_COLORS,
@@ -260,6 +261,19 @@ export default function ClienteTaskDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Video Review Panel — if video attachment exists (read-only for client) */}
+            {task.attachments.some((a) => a.mimeType?.startsWith("video/")) && (
+              <div className="h-[600px]">
+                <VideoReviewPanel
+                  videoUrl={task.attachments.find((a) => a.mimeType?.startsWith("video/"))?.fileUrl || ""}
+                  mediaType="TASK_FILE"
+                  mediaId={task.id}
+                  initialComments={[]}
+                  readOnly={true}
+                />
+              </div>
             )}
 
             {/* Task info */}

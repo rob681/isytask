@@ -18,6 +18,11 @@ import { platformRouter } from "./routers/platform.router";
 import { ecosystemRouter } from "./routers/ecosystem.router";
 import { billingRouter } from "./routers/billing.router";
 import { onboardingRouter } from "./routers/onboarding.router";
+import { whatsappRouter } from "./routers/whatsapp.router";
+import { riskRouter } from "./routers/risk.router";
+import { videoCommentsRouter } from "./routers/video-comments.router";
+import { crossAppRouter } from "./routers/cross-app.router";
+import { platformConfigRouter } from "./routers/platform-config.router";
 
 export const appRouter = router({
   auth: authRouter,
@@ -26,6 +31,7 @@ export const appRouter = router({
   services: servicesRouter,
   tasks: tasksRouter,
   comments: commentsRouter,
+  videoComments: videoCommentsRouter,
   notifications: notificationsRouter,
   metrics: metricsRouter,
   config: configRouter,
@@ -39,6 +45,10 @@ export const appRouter = router({
   ecosystem: ecosystemRouter,
   billing: billingRouter,
   onboarding: onboardingRouter,
+  whatsapp: whatsappRouter,
+  risk: riskRouter,
+  crossApp: crossAppRouter,
+  platformConfig: platformConfigRouter,
 });
 
 export type AppRouter = typeof appRouter;

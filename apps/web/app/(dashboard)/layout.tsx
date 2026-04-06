@@ -14,8 +14,10 @@ export default function DashboardLayout({
     <SidebarProvider>
       <div className="flex min-h-screen">
         <Sidebar />
-        <main className="flex-1 overflow-auto min-w-0 animate-in">
-          <ErrorBoundary>{children}</ErrorBoundary>
+        <main className="flex-1 overflow-auto min-w-0">
+          <ErrorBoundary>
+            <div className="animate-fade-in">{children}</div>
+          </ErrorBoundary>
         </main>
         <NotificationListener />
         <GuidedTour />

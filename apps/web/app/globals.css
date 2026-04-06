@@ -147,18 +147,41 @@
   padding: 6px 16px !important;
   font-size: 13px !important;
   font-weight: 500 !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  line-height: 1.4 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: opacity 0.15s ease, transform 0.1s ease !important;
 }
 
 .driver-popover .driver-popover-next-btn,
 .driver-popover .driver-popover-close-btn[data-is-done-btn="true"] {
   background: linear-gradient(135deg, hsl(var(--gradient-start)), hsl(var(--gradient-end))) !important;
   color: white !important;
+  border: none !important;
+}
+
+.driver-popover .driver-popover-next-btn:hover,
+.driver-popover .driver-popover-close-btn[data-is-done-btn="true"]:hover {
+  opacity: 0.9 !important;
+}
+
+.driver-popover .driver-popover-next-btn:active,
+.driver-popover .driver-popover-close-btn[data-is-done-btn="true"]:active {
+  opacity: 0.8 !important;
+  transform: scale(0.98) !important;
 }
 
 .driver-popover .driver-popover-prev-btn {
   background-color: transparent !important;
   color: hsl(var(--muted-foreground)) !important;
   border: 1px solid hsl(var(--border)) !important;
+}
+
+.driver-popover .driver-popover-prev-btn:hover {
+  background-color: hsl(var(--accent)) !important;
 }
 
 .driver-popover .driver-popover-arrow-side-left,
@@ -178,6 +201,19 @@ html {
 }
 
 /* ── 2. Page Enter Animation ── */
+/* NOTE: animate-fade-in uses ONLY opacity (no transform).
+   transform on ancestor elements breaks @dnd-kit DragOverlay
+   (position:fixed becomes relative to transformed container). */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 250ms ease-out;
+}
+
+/* Legacy: kept for non-DnD pages if needed */
 @keyframes fadeInUp {
   from {
     opacity: 0;

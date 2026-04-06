@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { db } from "@isytask/db";
+import {
+  upsertSharedSubscription as upsertSharedSub,
+  getOrganizationByAgencyId,
+  getOrCreateOrganization,
+} from "@isytask/api";
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -109,6 +114,21 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   });
 
   console.log(`[Stripe Webhook] Subscription created: ${product} ${planTier} for agency ${agencyId}`);
+
+  // Also write to shared schema for cross-product awareness
+  try {
+    const org = await getOrCreateOrganization(db, product as any, agencyId, "Agency");
+    await upsertSharedSub(db, {
+      organizationId: org.id,
+      product: product as any,
+      planTier: planTier as any,
+      status: "active",
+      stripeSubscriptionId,
+      currentPeriodStart: new Date(),
+    });
+  } catch (err) {
+    console.warn("[Stripe Webhook] Failed to sync to shared schema:", err);
+  }
 }
 
 /**
@@ -175,6 +195,29 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   });
 
   console.log(`[Stripe Webhook] Subscription updated: ${subscription.id} → ${mappedStatus}`);
+
+  // Sync to shared schema
+  try {
+    if (agencyId) {
+      const org = await getOrganizationByAgencyId(db, product as any, agencyId);
+      if (org) {
+        await upsertSharedSub(db, {
+          organizationId: org.id,
+          product: product as any,
+          planTier: (planTier as any) || "basic",
+          status: mappedStatus as any,
+          stripeSubscriptionId: subscription.id,
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd ?? undefined,
+          canceledAt: subscription.canceled_at
+            ? new Date(subscription.canceled_at * 1000)
+            : null,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[Stripe Webhook] Failed to sync update to shared schema:", err);
+  }
 }
 
 /**
@@ -200,6 +243,24 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   });
 
   console.log(`[Stripe Webhook] Subscription canceled: ${product} for agency ${agencyId}`);
+
+  // Sync cancellation to shared schema
+  try {
+    if (agencyId) {
+      const org = await getOrganizationByAgencyId(db, product as any, agencyId);
+      if (org) {
+        await upsertSharedSub(db, {
+          organizationId: org.id,
+          product: product as any,
+          planTier: "basic",
+          status: "canceled",
+          canceledAt: new Date(),
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[Stripe Webhook] Failed to sync cancel to shared schema:", err);
+  }
 }
 
 /**
@@ -222,4 +283,15 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   });
 
   console.log(`[Stripe Webhook] Payment failed for subscription: ${subscriptionId}`);
+
+  // Also update in shared schema
+  try {
+    await db.$queryRawUnsafe(
+      `UPDATE shared.subscriptions SET status = 'past_due', updated_at = now()
+       WHERE stripe_subscription_id = $1`,
+      subscriptionId
+    );
+  } catch (err) {
+    console.warn("[Stripe Webhook] Failed to sync payment_failed to shared schema:", err);
+  }
 }

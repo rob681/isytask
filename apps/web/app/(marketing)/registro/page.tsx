@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
 import { Loader2, CheckCircle2 } from "lucide-react";
+import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3";
 
 type RegisterForm = z.infer<typeof registerAgencySchema>;
 
@@ -26,6 +27,7 @@ function RegistroForm() {
   const plan = searchParams.get("plan") || "";
   const [success, setSuccess] = useState(false);
   const [successEmail, setSuccessEmail] = useState("");
+  const { executeRecaptcha } = useGoogleReCaptcha();
 
   const registerMutation = trpc.auth.registerAgency.useMutation({
     onSuccess: (data) => {
@@ -37,14 +39,21 @@ function RegistroForm() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerAgencySchema),
+    defaultValues: { honeypot: "" },
   });
 
-  const onSubmit = (data: RegisterForm) => {
-    registerMutation.mutate(data);
-  };
+  const onSubmit = useCallback(async (data: RegisterForm) => {
+    if (!executeRecaptcha) {
+      setError("root", { message: "reCAPTCHA no disponible. Recarga la página." });
+      return;
+    }
+    const recaptchaToken = await executeRecaptcha("register");
+    registerMutation.mutate({ ...data, recaptchaToken });
+  }, [executeRecaptcha, registerMutation, setError]);
 
   if (success) {
     return (
@@ -102,6 +111,16 @@ function RegistroForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* Honeypot — invisible para humanos, bots lo llenan */}
+          <input
+            {...register("honeypot")}
+            type="text"
+            tabIndex={-1}
+            aria-hidden="true"
+            autoComplete="off"
+            style={{ position: "absolute", left: "-9999px", opacity: 0, height: 0, width: 0 }}
+          />
+
           <div className="space-y-2">
             <label className="text-sm font-medium">
               Nombre de la agencia
@@ -180,9 +199,9 @@ function RegistroForm() {
             </div>
           </div>
 
-          {registerMutation.error && (
+          {(registerMutation.error || errors.root) && (
             <p className="text-sm text-destructive text-center">
-              {registerMutation.error.message}
+              {registerMutation.error?.message || errors.root?.message}
             </p>
           )}
 
@@ -227,22 +246,24 @@ function RegistroForm() {
 
 export default function RegistroPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
-      {/* Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/2 -left-1/4 w-[600px] h-[600px] rounded-full bg-[hsl(262,83%,58%)] opacity-[0.04] blur-[100px]" />
-        <div className="absolute -bottom-1/2 -right-1/4 w-[600px] h-[600px] rounded-full bg-[hsl(185,80%,50%)] opacity-[0.04] blur-[100px]" />
-      </div>
+    <GoogleReCaptchaProvider reCaptchaKey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}>
+      <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
+        {/* Background */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-1/2 -left-1/4 w-[600px] h-[600px] rounded-full bg-[hsl(262,83%,58%)] opacity-[0.04] blur-[100px]" />
+          <div className="absolute -bottom-1/2 -right-1/4 w-[600px] h-[600px] rounded-full bg-[hsl(185,80%,50%)] opacity-[0.04] blur-[100px]" />
+        </div>
 
-      <Suspense
-        fallback={
-          <Card className="w-full max-w-md glass-card shadow-soft p-8 text-center">
-            <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-          </Card>
-        }
-      >
-        <RegistroForm />
-      </Suspense>
-    </div>
+        <Suspense
+          fallback={
+            <Card className="w-full max-w-md glass-card shadow-soft p-8 text-center">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+            </Card>
+          }
+        >
+          <RegistroForm />
+        </Suspense>
+      </div>
+    </GoogleReCaptchaProvider>
   );
 }

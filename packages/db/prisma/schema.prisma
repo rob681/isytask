@@ -67,6 +67,18 @@ enum NotificationType {
   CAMBIO_SOLICITADO
   TAREA_PENDIENTE_RECORDATORIO
   SLA_ALERTA
+  // Cross-app (Isysocial integration)
+  ISYSOCIAL_POST_RECHAZADO
+  ISYSOCIAL_POST_APROBADO
+  ISYSOCIAL_OAUTH_EXPIRADO
+  ISYSOCIAL_CONTENIDO_PUBLICADO
+}
+
+enum CrossAppEventStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
 }
 
 enum TaskAssignmentRole {
@@ -101,11 +113,14 @@ model Agency {
   name      String
   slug      String   @unique
   logoUrl      String?
+  logoWhiteUrl String?
   maxUsers     Int      @default(50)
   planTier     String   @default("basic")
   billingEmail String?
   trialEndsAt  DateTime?
-  isActive     Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  hideBranding    Boolean  @default(false)
+  customAppName   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -192,10 +207,13 @@ model User {
   colaboradorProfile ColaboradorProfile?
   notifications      Notification[]
   pushSubscriptions  PushSubscription[]
+  expoPushTokens     ExpoPushToken[]
   sentComments       TaskComment[]
   taskStatusChanges  TaskStatusLog[]
   createdRecurringTasks RecurringTask[]
   tokens            Token[]
+  whatsappContact   WhatsAppContact?
+  videoComments     VideoComment[] @relation("VideoCommentAuthor")
 
   @@index([agencyId])
   @@map("users")
@@ -222,6 +240,8 @@ model ClientProfile {
   assignedColaboradors ColaboradorClientAssignment[]
   allowedServices     ClientServiceAccess[]
   recurringTasks      RecurringTask[]
+  whatsappContacts    WhatsAppContact[]
+  responseMetrics     ClientResponseMetric[]
 
   @@map("client_profiles")
 }
@@ -243,6 +263,7 @@ model ColaboradorProfile {
   taskAssignments  TaskAssignment[]
   assignedClients  ColaboradorClientAssignment[]
   recurringTasks   RecurringTask[] @relation("RecurringTaskColaborador")
+  velocityMetrics  ColaboradorVelocityMetric[]
 
   @@map("colaborador_profiles")
 }
@@ -338,7 +359,7 @@ model ServiceFormField {
 
 model Task {
   id            String       @id @default(cuid())
-  taskNumber    Int          @default(autoincrement())
+  taskNumber    Int
   clientId      String
   client        ClientProfile @relation(fields: [clientId], references: [id])
   serviceId     String
@@ -365,20 +386,29 @@ model Task {
 
   formData       Json?
 
+  // Cross-app: Isysocial integration (optional link to a Post)
+  isysocialPostId   String?   // ID of the linked Post in isysocial schema
+  isysocialPostType String?   // "IMAGE" | "CAROUSEL" | "STORY" | "REEL" | "VIDEO" | "TEXT"
+
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  comments    TaskComment[]
-  statusLog   TaskStatusLog[]
-  attachments TaskAttachment[]
-  assignments TaskAssignment[]
-  responses   TaskResponse[]
+  comments         TaskComment[]
+  statusLog        TaskStatusLog[]
+  attachments      TaskAttachment[]
+  assignments      TaskAssignment[]
+  responses        TaskResponse[]
+  whatsappMessages WhatsAppMessage[]
+  riskAssessment   RiskAssessment?
+  crossAppEvents   CrossAppEvent[]
 
+  @@unique([agencyId, taskNumber])
   @@index([agencyId, status])
   @@index([clientId, status])
   @@index([colaboradorId, status])
   @@index([status, category])
   @@index([createdAt])
+  @@index([isysocialPostId])
   @@map("tasks")
 }
 
@@ -442,6 +472,23 @@ model TaskComment {
   @@map("task_comments")
 }
 
+model VideoComment {
+  id              String   @id @default(cuid())
+  mediaType       String   // "POST_MEDIA" | "TASK_FILE"
+  mediaId         String   // Foreign key to PostMedia.id or Task.id
+  authorId        String
+  author          User     @relation("VideoCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  content         String
+  timecodeSeconds Float?   // Timestamp in seconds (e.g., 15.5 for 15.5 seconds)
+  isInternal      Boolean  @default(false)
+  isResolved      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([mediaId, timecodeSeconds])
+  @@map("video_comments")
+}
+
 // ──────────────────────────────────────────────
 // FILE ATTACHMENTS
 // ──────────────────────────────────────────────
@@ -471,6 +518,7 @@ model Notification {
   id         String              @id @default(cuid())
   userId     String
   user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agencyId   String?
   type       NotificationType
   channel    NotificationChannel
   title      String
@@ -482,6 +530,7 @@ model Notification {
   createdAt  DateTime            @default(now())
 
   @@index([userId, isRead, createdAt])
+  @@index([agencyId, userId, isRead, createdAt])
   @@map("notifications")
 }
 
@@ -502,12 +551,36 @@ model PushSubscription {
   @@map("push_subscriptions")
 }
 
+model ExpoPushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String   @default("ios") // "ios" | "android"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("expo_push_tokens")
+}
+
 model SystemConfig {
   id    String @id @default(cuid())
   key   String @unique
   value Json
 
   @@map("system_config")
+}
+
+/// Platform-wide configuration managed only by SUPER_ADMIN.
+/// Stores global Email, WhatsApp, AI, and platform settings.
+model PlatformConfig {
+  id    String @id @default(cuid())
+  key   String @unique
+  value Json
+
+  @@map("platform_config")
 }
 
 // ──────────────────────────────────────────────
@@ -573,6 +646,74 @@ model TaskTemplate {
 }
 
 // ──────────────────────────────────────────────
+// WHATSAPP INTEGRATION (Inbound messages → Task comments)
+// ──────────────────────────────────────────────
+
+enum WhatsAppMessageStatus {
+  RECEIVED
+  MATCHED
+  COMMENT_CREATED
+  UNMATCHED
+  FAILED
+}
+
+model WhatsAppContact {
+  id          String   @id @default(cuid())
+  phone       String   @unique // E.164 format: +521234567890
+  userId      String?  @unique
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clientId    String?
+  client      ClientProfile? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  displayName String?
+  isVerified  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  lastMessageAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages    WhatsAppMessage[]
+
+  @@index([phone])
+  @@index([userId])
+  @@index([clientId])
+  @@map("whatsapp_contacts")
+}
+
+model WhatsAppMessage {
+  id            String                 @id @default(cuid())
+  contactId     String
+  contact       WhatsAppContact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  // Message provider IDs
+  twilioSid     String?                // Twilio message SID (null if from Meta)
+  metaMessageId String?                // Meta message ID (null if from Twilio)
+  provider      String                 @default("twilio") // "twilio" | "meta"
+
+  direction     String                 @default("inbound") // "inbound" | "outbound"
+  body          String                 @db.Text
+  mediaUrl      String?
+  mediaType     String?
+
+  // Task matching
+  status        WhatsAppMessageStatus  @default(RECEIVED)
+  matchedTaskId String?
+  matchedTask   Task?                  @relation(fields: [matchedTaskId], references: [id], onDelete: SetNull)
+  commentId     String?                // The TaskComment created from this message
+  aiConfidence  Float?                 // 0-1 confidence of the AI match
+  aiReasoning   String?                // Why the AI matched to this task
+
+  createdAt     DateTime               @default(now())
+
+  @@unique([twilioSid], name: "twilio_unique")
+  @@unique([metaMessageId], name: "meta_unique")
+  @@index([contactId, createdAt])
+  @@index([status])
+  @@index([matchedTaskId])
+  @@index([provider])
+  @@map("whatsapp_messages")
+}
+
+// ──────────────────────────────────────────────
 // AUTH TOKENS (Invitations & Password Reset)
 // ──────────────────────────────────────────────
 
@@ -608,4 +749,118 @@ model TaskAssignment {
   @@unique([taskId, colaboradorId])
   @@index([colaboradorId])
   @@map("task_assignments")
+}
+
+// ──────────────────────────────────────────────
+// RISK PREDICTION (AI-powered project health)
+// ──────────────────────────────────────────────
+
+enum RiskLevel {
+  GREEN
+  YELLOW
+  RED
+}
+
+model RiskAssessment {
+  id        String    @id @default(cuid())
+  taskId    String    @unique
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agencyId  String
+
+  // Risk factors (computed)
+  riskScore                    Float     // 0-100
+  riskLevel                    RiskLevel @default(GREEN)
+  daysUntilDeadline            Int?
+  daysSinceLastClientResponse  Int?
+  daysSinceLastUpdate          Int
+  assigneeActiveTaskCount      Int?
+  clientAvgApprovalDays        Float?    // historical: how long this client takes to approve
+  teamAvgCompletionDays        Float?    // historical: how long this team member takes
+
+  // AI-generated insights
+  prediction      String    @db.Text // Natural language prediction
+  suggestedAction String?   @db.Text // What to do about it
+
+  analyzedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([agencyId, riskLevel])
+  @@index([riskLevel])
+  @@map("risk_assessments")
+}
+
+model ClientResponseMetric {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  agencyId  String
+
+  avgApprovalDays    Float   // average days to approve/respond
+  avgResponseDays    Float   // average days between comments
+  tasksAnalyzed      Int     // how many tasks were used to calculate
+  slowestApprovalDays Float? // worst case
+
+  month     Int
+  year      Int
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, month, year])
+  @@index([agencyId])
+  @@map("client_response_metrics")
+}
+
+model ColaboradorVelocityMetric {
+  id             String   @id @default(cuid())
+  colaboradorId  String
+  colaborador    ColaboradorProfile @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  agencyId       String
+
+  avgCompletionDays  Float   // average days to complete a task
+  tasksCompleted     Int
+  onTimeRate         Float   // % of tasks completed before deadline
+
+  month     Int
+  year      Int
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([colaboradorId, month, year])
+  @@index([agencyId])
+  @@map("colaborador_velocity_metrics")
+}
+
+// ──────────────────────────────────────────────
+// CROSS-APP EVENTS (Isytask ↔ Isysocial sync)
+// ──────────────────────────────────────────────
+
+model CrossAppEvent {
+  id          String              @id @default(cuid())
+  sourceApp   Product             // ISYTASK | ISYSOCIAL
+  targetApp   Product
+  eventType   String              // e.g. "POST_REJECTED", "TASK_FINALIZADA", "OAUTH_EXPIRED"
+  agencyId    String
+  status      CrossAppEventStatus @default(PENDING)
+
+  // Optional references for traceability
+  taskId            String?
+  task              Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  isysocialPostId   String? // Post ID in isysocial schema (no FK — cross-schema)
+
+  // Event payload (flexible JSON for any event-specific data)
+  payload     Json    @default("{}")
+
+  // Processing
+  errorMessage String?
+  processedAt  DateTime?
+  retryCount   Int      @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([agencyId, eventType])
+  @@index([taskId])
+  @@index([isysocialPostId])
+  @@map("cross_app_events")
 }

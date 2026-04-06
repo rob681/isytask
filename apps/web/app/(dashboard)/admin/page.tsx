@@ -5,6 +5,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { QATestingWidget } from "@/components/qa-testing-widget";
 import { trpc } from "@/lib/trpc/client";
 import {
   TASK_STATUS_LABELS,
@@ -25,6 +26,9 @@ import {
   Wand2,
   Share2,
   ExternalLink,
+  AlertTriangle,
+  ShieldCheck,
+  Activity,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -326,6 +330,12 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         )}
+        {/* ─── Risk Semaphore Widget ────────────────── */}
+        <RiskSemaphoreWidget />
+
+        {/* ─── QA Testing Widget ────────────────────── */}
+        <QATestingWidget />
+
         {/* ─── Filters bar ─────────────────────────── */}
         <Card>
           <CardContent className="p-4">
@@ -756,5 +766,195 @@ export default function AdminDashboard() {
         )}
       </div>
     </>
+  );
+}
+
+// ─── Risk Semaphore Widget ───
+
+function RiskSemaphoreWidget() {
+  const { data: riskData, isLoading } = trpc.risk.overview.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000, // 5 min cache
+  });
+
+  const analyzeMutation = trpc.risk.analyze.useMutation({
+    onSuccess: () => {
+      // Refetch after analysis
+      window.location.reload();
+    },
+  });
+
+  if (isLoading) return null;
+
+  // Don't show if no data yet
+  if (!riskData || riskData.totalAssessed === 0) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                <Activity className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">Predicción de Riesgos</p>
+                <p className="text-xs text-muted-foreground">
+                  Ejecuta el primer análisis para ver el semáforo de salud de tus proyectos
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => analyzeMutation.mutate()}
+              disabled={analyzeMutation.isLoading}
+            >
+              {analyzeMutation.isLoading ? "Analizando..." : "Analizar Ahora"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { healthScore, counts, redTasks, yellowTasks } = riskData;
+
+  // Health color
+  const healthColor =
+    healthScore >= 70
+      ? "text-green-500"
+      : healthScore >= 40
+        ? "text-amber-500"
+        : "text-red-500";
+  const healthBg =
+    healthScore >= 70
+      ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+      : healthScore >= 40
+        ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800"
+        : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800";
+
+  return (
+    <Card className={healthBg}>
+      <CardContent className="p-4">
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className={`text-3xl font-bold ${healthColor}`}>
+              {healthScore >= 70 ? (
+                <ShieldCheck className="h-8 w-8" />
+              ) : (
+                <AlertTriangle className="h-8 w-8" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-sm">Salud del Proyecto</h3>
+                <span className={`text-lg font-bold ${healthColor}`}>
+                  {healthScore}%
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {riskData.totalAssessed} tareas analizadas
+                {riskData.lastAnalyzedAt &&
+                  ` · Último análisis: ${new Date(riskData.lastAnalyzedAt).toLocaleString("es-MX", { hour: "2-digit", minute: "2-digit" })}`}
+              </p>
+            </div>
+          </div>
+
+          {/* Semaphore dots */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-red-500" />
+              <span className="text-sm font-medium">{counts.red}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-amber-400" />
+              <span className="text-sm font-medium">{counts.yellow}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-green-500" />
+              <span className="text-sm font-medium">{counts.green}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => analyzeMutation.mutate()}
+              disabled={analyzeMutation.isLoading}
+              className="ml-2"
+            >
+              {analyzeMutation.isLoading ? "..." : "Actualizar"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Red tasks list */}
+        {redTasks.length > 0 && (
+          <div className="space-y-2 mt-3">
+            {(redTasks as any[]).slice(0, 3).map((assessment: any) => (
+              <Link
+                key={assessment.id}
+                href={`/admin/tareas/${assessment.task.id}`}
+                className="flex items-start gap-3 p-2 rounded-lg bg-white/60 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <div className="w-2 h-2 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      #{assessment.task.taskNumber} {assessment.task.title}
+                    </span>
+                    <Badge variant="outline" className="text-xs text-red-600 border-red-200">
+                      {Math.round(assessment.riskScore)}% riesgo
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {assessment.prediction}
+                  </p>
+                  {assessment.suggestedAction && (
+                    <p className="text-xs text-primary mt-0.5 font-medium">
+                      → {assessment.suggestedAction}
+                    </p>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground flex-shrink-0">
+                  {assessment.task.client?.companyName ||
+                    assessment.task.client?.user?.name}
+                </span>
+              </Link>
+            ))}
+            {redTasks.length > 3 && (
+              <p className="text-xs text-muted-foreground text-center pt-1">
+                +{redTasks.length - 3} tareas más en riesgo
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Yellow tasks (collapsed) */}
+        {yellowTasks.length > 0 && redTasks.length === 0 && (
+          <div className="space-y-2 mt-3">
+            {(yellowTasks as any[]).slice(0, 2).map((assessment: any) => (
+              <Link
+                key={assessment.id}
+                href={`/admin/tareas/${assessment.task.id}`}
+                className="flex items-start gap-3 p-2 rounded-lg bg-white/60 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <div className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      #{assessment.task.taskNumber} {assessment.task.title}
+                    </span>
+                    <Badge variant="outline" className="text-xs text-amber-600 border-amber-200">
+                      {Math.round(assessment.riskScore)}% riesgo
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {assessment.prediction}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

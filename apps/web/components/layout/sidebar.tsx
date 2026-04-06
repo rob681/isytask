@@ -31,13 +31,15 @@ import {
   Receipt,
   ExternalLink,
   Share2,
+  MessageSquare,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "./theme-switcher";
 import { ProductSelector } from "./product-selector";
 import { trpc } from "@/lib/trpc/client";
+import { ChevronDown } from "lucide-react";
 
 interface NavItem {
   label: string;
@@ -46,7 +48,58 @@ interface NavItem {
   permission?: string;
 }
 
-const adminNav: NavItem[] = [
+interface NavGroup {
+  label: string;
+  icon: React.ReactNode;
+  items: NavItem[];
+  permission?: string;
+}
+
+type NavEntry = NavItem | NavGroup;
+
+function isNavGroup(entry: NavEntry): entry is NavGroup {
+  return "items" in entry;
+}
+
+const adminNav: NavEntry[] = [
+  { label: "Dashboard", href: "/admin", icon: <LayoutDashboard className="h-5 w-5" />, permission: "dashboard" },
+  { label: "Equipo", href: "/admin/equipo", icon: <Users className="h-5 w-5" />, permission: "manage_team" },
+  { label: "Clientes", href: "/admin/clientes", icon: <UserCircle className="h-5 w-5" />, permission: "manage_clients" },
+  { label: "Servicios", href: "/admin/servicios", icon: <Briefcase className="h-5 w-5" />, permission: "manage_services" },
+  {
+    label: "Tareas",
+    icon: <ListTodo className="h-5 w-5" />,
+    permission: "manage_tasks",
+    items: [
+      { label: "Tareas", href: "/admin/tareas", icon: <ListTodo className="h-4 w-4" />, permission: "manage_tasks" },
+      { label: "Nueva Tarea", href: "/admin/nueva-tarea", icon: <PlusCircle className="h-4 w-4" />, permission: "manage_tasks" },
+      { label: "Recurrentes", href: "/admin/tareas-recurrentes", icon: <RefreshCw className="h-4 w-4" />, permission: "manage_tasks" },
+      { label: "Plantillas", href: "/admin/plantillas", icon: <FileText className="h-4 w-4" />, permission: "manage_services" },
+    ],
+  },
+  {
+    label: "Analíticas",
+    icon: <BarChart3 className="h-5 w-5" />,
+    permission: "dashboard",
+    items: [
+      { label: "Rentabilidad", href: "/admin/reportes", icon: <BarChart3 className="h-4 w-4" />, permission: "dashboard" },
+      { label: "Historial", href: "/admin/audit", icon: <Activity className="h-4 w-4" />, permission: "dashboard" },
+    ],
+  },
+  {
+    label: "Configuración",
+    icon: <Settings className="h-5 w-5" />,
+    permission: "manage_config",
+    items: [
+      { label: "General", href: "/admin/configuracion", icon: <Settings className="h-4 w-4" />, permission: "manage_config" },
+      { label: "Facturación", href: "/admin/billing", icon: <CreditCard className="h-4 w-4" />, permission: "manage_config" },
+      { label: "WhatsApp", href: "/admin/whatsapp", icon: <MessageSquare className="h-4 w-4" />, permission: "manage_config" },
+    ],
+  },
+];
+
+// Flat version for roles that don't use groups (colaborador permission filtering)
+const adminNavFlat: NavItem[] = [
   { label: "Dashboard", href: "/admin", icon: <LayoutDashboard className="h-5 w-5" />, permission: "dashboard" },
   { label: "Equipo", href: "/admin/equipo", icon: <Users className="h-5 w-5" />, permission: "manage_team" },
   { label: "Clientes", href: "/admin/clientes", icon: <UserCircle className="h-5 w-5" />, permission: "manage_clients" },
@@ -57,6 +110,7 @@ const adminNav: NavItem[] = [
   { label: "Plantillas", href: "/admin/plantillas", icon: <FileText className="h-5 w-5" />, permission: "manage_services" },
   { label: "Rentabilidad", href: "/admin/reportes", icon: <BarChart3 className="h-5 w-5" />, permission: "dashboard" },
   { label: "Historial", href: "/admin/audit", icon: <Activity className="h-5 w-5" />, permission: "dashboard" },
+  { label: "WhatsApp", href: "/admin/whatsapp", icon: <MessageSquare className="h-5 w-5" />, permission: "manage_config" },
   { label: "Facturación", href: "/admin/billing", icon: <CreditCard className="h-5 w-5" />, permission: "manage_config" },
   { label: "Configuración", href: "/admin/configuracion", icon: <Settings className="h-5 w-5" />, permission: "manage_config" },
 ];
@@ -74,6 +128,7 @@ const superAdminNav: NavItem[] = [
   { label: "Facturacion", href: "/superadmin/facturacion/agencias", icon: <CreditCard className="h-5 w-5" /> },
   { label: "Ventas", href: "/superadmin/ventas/agencias", icon: <TrendingUp className="h-5 w-5" /> },
   { label: "Analitica", href: "/superadmin/analista/tendencias", icon: <BarChart3 className="h-5 w-5" /> },
+  { label: "Configuracion", href: "/superadmin/configuracion", icon: <Settings className="h-5 w-5" /> },
 ];
 
 const soporteNav: NavItem[] = [
@@ -123,33 +178,36 @@ function useNavItems() {
   const avatarUrl = (session?.user as any)?.avatarUrl;
   const hasAdminAccess = role === "COLABORADOR" && permissions.length > 0;
 
-  let navItems: NavItem[];
+  let navEntries: NavEntry[];
+  let flatItems: NavItem[] | null = null; // For colaborador permission filtering
+
   if (role === "SUPER_ADMIN") {
-    navItems = superAdminNav;
+    navEntries = superAdminNav;
   } else if (role === "SOPORTE") {
-    navItems = soporteNav;
+    navEntries = soporteNav;
   } else if (role === "FACTURACION") {
-    navItems = facturacionNav;
+    navEntries = facturacionNav;
   } else if (role === "VENTAS") {
-    navItems = ventasNav;
+    navEntries = ventasNav;
   } else if (role === "ANALISTA") {
-    navItems = analistaNav;
+    navEntries = analistaNav;
   } else if (role === "ADMIN") {
-    navItems = adminNav;
+    navEntries = adminNav;
   } else if (role === "COLABORADOR") {
     const items: NavItem[] = [...colaboradorNav];
-    const permittedAdminItems = adminNav.filter(
+    const permittedAdminItems = adminNavFlat.filter(
       (item) => item.permission && permissions.includes(item.permission)
     );
     if (permittedAdminItems.length > 0) {
       items.push(...permittedAdminItems);
     }
-    navItems = items;
+    navEntries = items;
+    flatItems = items;
   } else {
-    navItems = clienteNav;
+    navEntries = clienteNav;
   }
 
-  return { session, role, permissions, avatarUrl, hasAdminAccess, navItems };
+  return { session, role, permissions, avatarUrl, hasAdminAccess, navEntries, flatItems };
 }
 
 // ─── Reusable sidebar content (used by both desktop & mobile) ───
@@ -163,15 +221,76 @@ interface SidebarContentProps {
 export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: SidebarContentProps) {
   const pathname = usePathname();
   const { theme } = useTheme();
-  const { session, role, avatarUrl, hasAdminAccess, navItems } = useNavItems();
+  const { session, role, avatarUrl, hasAdminAccess, navEntries } = useNavItems();
   const isDark = theme === "dark";
+
+  // Collapsible group state — auto-expand group with active item
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("sidebar-open-groups");
+        if (saved) return new Set(JSON.parse(saved));
+      } catch {}
+    }
+    return new Set<string>();
+  });
+
+  // Auto-expand group containing active route
+  useEffect(() => {
+    for (const entry of navEntries) {
+      if (isNavGroup(entry)) {
+        const hasActive = entry.items.some(
+          (item) =>
+            pathname === item.href ||
+            (item.href !== "/admin" && pathname.startsWith(item.href)) ||
+            (item.href === "/admin/tareas" && pathname === "/admin/nueva-tarea")
+        );
+        if (hasActive && !openGroups.has(entry.label)) {
+          setOpenGroups((prev) => {
+            const next = new Set(prev);
+            next.add(entry.label);
+            return next;
+          });
+        }
+      }
+    }
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleGroup = useCallback((label: string) => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      try { localStorage.setItem("sidebar-open-groups", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
+
+  function isItemActive(href: string) {
+    return (
+      pathname === href ||
+      (href !== "/admin" &&
+        href !== "/equipo" &&
+        href !== "/cliente" &&
+        pathname.startsWith(href)) ||
+      (href === "/admin/tareas" && pathname === "/admin/nueva-tarea")
+    );
+  }
+
+  function isGroupActive(group: NavGroup) {
+    return group.items.some((item) => isItemActive(item.href));
+  }
 
   const { data: publicConfig } = trpc.config.getPublic.useQuery(undefined, {
     staleTime: 60000,
   });
 
-  const companyLogoUrl = publicConfig?.company_logo_url;
-  const companyLogoWhiteUrl = publicConfig?.company_logo_white_url;
+  const { data: agencyLogo } = trpc.agencies.getMyAgencyLogo.useQuery(undefined, {
+    staleTime: 60000,
+  });
+
+  const companyLogoUrl = agencyLogo?.logoUrl;
+  const companyLogoWhiteUrl = agencyLogo?.logoWhiteUrl;
 
   return (
     <>
@@ -310,20 +429,91 @@ export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: Sid
 
       {/* Navigation */}
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-        {navItems.map((item, index) => {
+        {navEntries.map((entry, index) => {
+          if (isNavGroup(entry)) {
+            const groupOpen = openGroups.has(entry.label);
+            const groupActive = isGroupActive(entry);
+
+            if (collapsed) {
+              // In collapsed mode, show group icon with active indicator
+              return (
+                <div key={entry.label} title={entry.label}>
+                  <button
+                    onClick={() => toggleGroup(entry.label)}
+                    className={cn(
+                      "flex items-center justify-center rounded-lg px-2 py-2 text-sm font-medium transition-all duration-200 w-full",
+                      groupActive
+                        ? "gradient-primary text-white shadow-md"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    )}
+                  >
+                    {entry.icon}
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div key={entry.label}>
+                <button
+                  onClick={() => toggleGroup(entry.label)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 w-full",
+                    groupActive
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  {entry.icon}
+                  <span className="flex-1 text-left">{entry.label}</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 transition-transform duration-200",
+                      groupOpen ? "rotate-180" : ""
+                    )}
+                  />
+                </button>
+                <div
+                  className={cn(
+                    "overflow-hidden transition-all duration-200",
+                    groupOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+                  )}
+                >
+                  <div className="ml-4 pl-3 border-l border-border/50 space-y-0.5 py-1">
+                    {entry.items.map((item) => {
+                      const active = isItemActive(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={onNavigate}
+                          className={cn(
+                            "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-all duration-200",
+                            active
+                              ? "gradient-primary text-white shadow-sm"
+                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          )}
+                        >
+                          {item.icon}
+                          <span>{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Regular nav item (not a group)
+          const item = entry as NavItem;
           const isFirstAdminItem =
             role === "COLABORADOR" &&
             hasAdminAccess &&
             item.permission &&
-            (index === 0 || !navItems[index - 1].permission);
+            (index === 0 || !(navEntries[index - 1] as NavItem).permission);
 
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/admin" &&
-              item.href !== "/equipo" &&
-              item.href !== "/cliente" &&
-              pathname.startsWith(item.href)) ||
-            (item.href === "/admin/tareas" && pathname === "/admin/nueva-tarea");
+          const isActive = isItemActive(item.href);
 
           return (
             <div key={item.href}>

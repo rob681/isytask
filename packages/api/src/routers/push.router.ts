@@ -59,6 +59,45 @@ export const pushRouter = router({
     return { subscribed: count > 0, count };
   }),
 
+  // ── Expo Push Token (Mobile) ─────────────────────────────────
+
+  /** Register an Expo Push Token from the mobile app */
+  registerExpoPushToken: protectedProcedure
+    .input(
+      z.object({
+        token: z.string().min(1),
+        platform: z.enum(["ios", "android"]).default("ios"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.expoPushToken.upsert({
+        where: { token: input.token },
+        create: {
+          userId: ctx.session.user.id,
+          token: input.token,
+          platform: input.platform,
+          isActive: true,
+        },
+        update: {
+          userId: ctx.session.user.id,
+          platform: input.platform,
+          isActive: true,
+          updatedAt: new Date(),
+        },
+      });
+    }),
+
+  /** Unregister an Expo Push Token (logout) */
+  unregisterExpoPushToken: protectedProcedure
+    .input(z.object({ token: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.expoPushToken.updateMany({
+        where: { token: input.token, userId: ctx.session.user.id },
+        data: { isActive: false },
+      });
+      return { success: true };
+    }),
+
   // Admin: generate VAPID keys
   generateVapidKeys: configProcedure.mutation(async ({ ctx }) => {
     const webpush = await import("web-push");
