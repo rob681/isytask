@@ -110,10 +110,15 @@ export function ProductSelector({ collapsed }: ProductSelectorProps) {
                   )}
                 >
                   <div className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-md flex-shrink-0",
+                    "flex h-8 w-8 items-center justify-center rounded-md flex-shrink-0 overflow-hidden",
                     isActive ? "bg-primary/20" : "bg-muted"
                   )}>
-                    <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
+                    {isIsysocial ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src="/isysocial-icon.svg" alt="Isysocial" className="h-5 w-5" />
+                    ) : (
+                      <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{info?.name ?? p.product}</p>
