@@ -47,3 +47,6 @@ export type {
   CrossAppEvent,
   SSOSession,
 } from "./lib/shared-db";
+
+export { isWorkingTime, addWorkingHours, workingHoursUntilDue, getWorkingConfig } from "./lib/working-hours";
+export type { BusinessHoursConfig, DayConfig, TimeBlock, WorkingConfig } from "./lib/working-hours";

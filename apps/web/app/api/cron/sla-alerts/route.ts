@@ -2,15 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@isytask/db";
+import { getWorkingConfig, workingHoursUntilDue } from "@isytask/api";
 
 /**
  * API route to check for tasks approaching or exceeding their SLA deadline.
  * Called by an external cron service or manually by admin.
  *
  * - Finds active tasks (RECIBIDA, EN_PROGRESO, DUDA) that have a dueAt date
+ * - Threshold comparison uses **working hours** (not calendar time), so
+ *   tasks won't trigger false alerts over weekends or outside work hours.
  * - Sends an SLA_ALERTA notification when:
  *   a) The task is overdue (dueAt has passed)
- *   b) The task is approaching deadline (within configured threshold, default 2 hours)
+ *   b) Working hours remaining until dueAt <= configured threshold (default 2h)
  * - Only sends one SLA alert per task per day to avoid spam
  */
 export async function GET(req: NextRequest) {
@@ -19,7 +22,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   // Allow either authenticated admin or API key (for external cron)
-  // Support both Vercel cron (Authorization: Bearer <secret>) and custom header
   const authHeader = req.headers.get("authorization");
   const cronSecret = req.headers.get("x-cron-secret");
   const isExternalCron =
@@ -34,50 +36,61 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Get configured threshold (hours before deadline to alert)
+    // Get configured threshold (working hours before deadline to alert)
     const thresholdConfig = await db.systemConfig.findUnique({
       where: { key: "sla_alert_threshold_hours" },
     });
     const thresholdHours = (thresholdConfig?.value as number) ?? 2;
 
-    const now = new Date();
-    const thresholdDate = new Date(now.getTime() + thresholdHours * 60 * 60 * 1000);
+    // Fetch agency working hours config (business_hours + timezone)
+    const workingConfig = await getWorkingConfig(db);
 
-    // Find active tasks approaching or past their SLA deadline
-    const atRiskTasks = await db.task.findMany({
+    const now = new Date();
+
+    // Wide calendar window to pre-filter candidates from DB.
+    // A task with N working hours remaining could be up to ~7 calendar days away
+    // (e.g. threshold=2h but coming up after a long weekend). Use 7 days as a safe
+    // upper bound — working hours check below will filter correctly.
+    const candidateWindowMs = 7 * 24 * 60 * 60 * 1000;
+    const candidateUntil = new Date(now.getTime() + candidateWindowMs);
+
+    // Find active tasks with dueAt set within candidate window (or already overdue)
+    const candidates = await db.task.findMany({
       where: {
         status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA"] },
         dueAt: {
           not: null,
-          lte: thresholdDate, // Due within threshold or already overdue
+          lte: candidateUntil,
         },
       },
       include: {
         service: { select: { name: true } },
         client: { select: { userId: true } },
-        colaborador: {
-          select: {
-            userId: true,
-          },
-        },
+        colaborador: { select: { userId: true } },
       },
     });
 
-    let alertsSent = 0;
+    // Filter to only tasks where working hours remaining <= threshold
+    const atRiskTasks = candidates.filter((task) => {
+      const remaining = workingHoursUntilDue(
+        now,
+        task.dueAt!,
+        workingConfig.businessHours,
+        workingConfig.timezone
+      );
+      return remaining <= thresholdHours;
+    });
 
-    // Check for recent SLA alerts (avoid duplicate alerts within 24h)
+    let alertsSent = 0;
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     for (const task of atRiskTasks) {
-      // Determine recipients: assigned collaborator + all admins
       const recipients: string[] = [];
 
-      // Add assigned collaborator
       if (task.colaborador) {
         recipients.push(task.colaborador.userId);
       }
 
-      // Add admins (same agency as the task)
       const admins = await db.user.findMany({
         where: { role: "ADMIN", isActive: true, agencyId: task.agencyId },
         select: { id: true },
@@ -89,12 +102,20 @@ export async function POST(req: NextRequest) {
       }
 
       const isOverdue = task.dueAt! <= now;
-      const hoursUntilDue = Math.round(
-        (task.dueAt!.getTime() - now.getTime()) / (1000 * 60 * 60)
+
+      // Working hours remaining (for message)
+      const workingRemaining = workingHoursUntilDue(
+        now,
+        task.dueAt!,
+        workingConfig.businessHours,
+        workingConfig.timezone
       );
+      const remainingDisplay =
+        workingRemaining < 1
+          ? `${Math.round(workingRemaining * 60)} minuto${Math.round(workingRemaining * 60) !== 1 ? "s" : ""}`
+          : `${Math.round(workingRemaining)} hora${Math.round(workingRemaining) !== 1 ? "s" : ""}`;
 
       for (const userId of recipients) {
-        // Check if we already sent an SLA alert for this task+user within 24h
         const existingAlert = await db.notification.findFirst({
           where: {
             userId,
@@ -108,7 +129,7 @@ export async function POST(req: NextRequest) {
 
         const body = isOverdue
           ? `La tarea #${task.taskNumber} (${task.service.name}) ha excedido su plazo de entrega.`
-          : `La tarea #${task.taskNumber} (${task.service.name}) vence en ${Math.abs(hoursUntilDue)} hora${Math.abs(hoursUntilDue) !== 1 ? "s" : ""}.`;
+          : `La tarea #${task.taskNumber} (${task.service.name}) vence en ${remainingDisplay} de trabajo.`;
 
         await db.notification.create({
           data: {

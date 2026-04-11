@@ -18,6 +18,7 @@ import { notifyTaskStatusChange } from "../lib/notifications";
 import { deleteFile as deleteStorageFile } from "../lib/supabase-storage";
 import { chatCompletion } from "../lib/openrouter";
 import { emitCrossAppEvent } from "../lib/cross-app-sync";
+import { addWorkingHours, getWorkingConfig } from "../lib/working-hours";
 
 async function getNextTaskNumber(db: any, agencyId: string): Promise<number> {
   const result = await db.task.aggregate({
@@ -213,11 +214,11 @@ export const tasksRouter = router({
         )[0];
       }
 
-      // Calculate dueAt from SLA hours
+      // Calculate dueAt using working hours (respects agency schedule)
       let dueAt: Date | undefined;
       if (service.slaHours) {
-        dueAt = new Date();
-        dueAt.setHours(dueAt.getHours() + service.slaHours);
+        const workingConfig = await getWorkingConfig(ctx.db);
+        dueAt = addWorkingHours(new Date(), service.slaHours, workingConfig.businessHours, workingConfig.timezone);
       }
 
       const agencyId = getAgencyId(ctx);
@@ -365,11 +366,11 @@ export const tasksRouter = router({
         }
       }
 
-      // Calculate dueAt from SLA hours
+      // Calculate dueAt using working hours (respects agency schedule)
       let dueAtForClient: Date | undefined;
       if (service.slaHours) {
-        dueAtForClient = new Date();
-        dueAtForClient.setHours(dueAtForClient.getHours() + service.slaHours);
+        const workingConfig = await getWorkingConfig(ctx.db);
+        dueAtForClient = addWorkingHours(new Date(), service.slaHours, workingConfig.businessHours, workingConfig.timezone);
       }
 
       // Build assignment creates for dual-write
