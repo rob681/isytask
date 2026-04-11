@@ -289,6 +289,30 @@ export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: Sid
     staleTime: 60000,
   });
 
+  // Check if agency has active Isysocial subscription
+  const { data: productSelector } = trpc.ecosystem.getProductSelector.useQuery(undefined, {
+    staleTime: 30000,
+  });
+  const hasIsysocial = productSelector?.availableProducts.some((p) => p.product === "ISYSOCIAL") ?? false;
+
+  const [ssoLoading, setSsoLoading] = useState(false);
+
+  async function handleOpenIsysocial(e: React.MouseEvent) {
+    e.preventDefault();
+    setSsoLoading(true);
+    try {
+      const res = await fetch("/api/sso/generate", { method: "POST" });
+      const json = await res.json();
+      if (json.redirectUrl) {
+        window.open(json.redirectUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      window.open("https://www.isysocial.com", "_blank", "noopener,noreferrer");
+    } finally {
+      setSsoLoading(false);
+    }
+  }
+
   const companyLogoUrl = agencyLogo?.logoUrl;
   const companyLogoWhiteUrl = agencyLogo?.logoWhiteUrl;
 
@@ -547,26 +571,41 @@ export function SidebarContent({ collapsed, onCollapsedChange, onNavigate }: Sid
         })}
       </nav>
 
-      {/* Isysocial cross-app link */}
-      {(role === "ADMIN" || role === "COLABORADOR") && (
+      {/* Isysocial cross-app link — only visible when agency has active Isysocial subscription */}
+      {hasIsysocial && (role === "ADMIN" || role === "COLABORADOR") && (
         <div className="px-2 pb-1">
-          <a
-            href="https://isysocial-web.vercel.app"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={handleOpenIsysocial}
+            disabled={ssoLoading}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 text-violet-600 hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950/30",
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium w-full transition-all duration-200",
+              "bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-950/40 dark:text-violet-400 dark:hover:bg-violet-950/60",
+              "border border-violet-200/60 dark:border-violet-800/40",
+              ssoLoading && "opacity-60 cursor-wait",
               collapsed && "justify-center px-2"
             )}
             title={collapsed ? "Abrir Isysocial" : undefined}
           >
-            <Share2 className="h-5 w-5" />
+            {ssoLoading ? (
+              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : (
+              <Share2 className="h-4 w-4 flex-shrink-0" />
+            )}
             {!collapsed && (
-              <span className="flex items-center gap-1.5">
-                Isysocial <ExternalLink className="h-3 w-3 opacity-50" />
+              <span className="flex items-center gap-1.5 flex-1">
+                Isysocial
+                <ExternalLink className="h-3 w-3 opacity-50" />
               </span>
             )}
-          </a>
+            {!collapsed && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-300 font-medium">
+                Conectado
+              </span>
+            )}
+          </button>
         </div>
       )}
 
