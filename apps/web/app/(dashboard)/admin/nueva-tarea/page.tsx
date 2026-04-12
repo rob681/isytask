@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc/client";
-import { Clock, UserCircle, Users, Info, X, Star, UserPlus, Sparkles, Bot } from "lucide-react";
+import { Clock, UserCircle, Users, Info, X, Star, UserPlus, Sparkles, Bot, Plus, MessageSquareText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ChatPanel } from "@/components/ai-chat/chat-panel";
 
@@ -25,6 +25,8 @@ export default function AdminNuevaTareaPage() {
   const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
   const [aiCategoryTitle, setAiCategoryTitle] = useState("");
   const [userOverrodeCategory, setUserOverrodeCategory] = useState(false);
+  const [showPurpose, setShowPurpose] = useState(false);
+  const [purpose, setPurpose] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch data
@@ -139,6 +141,7 @@ export default function AdminNuevaTareaPage() {
       description,
       category,
       formData,
+      ...(purpose.trim() && { purpose: purpose.trim() }),
       ...(primary && !primaryIsUser && { colaboradorId: primary.id }),
       ...(primary && primaryIsUser && { assignToUserId: primary.id.replace("user:", "") }),
       ...(helperColabIds.length > 0 && { additionalAssignees: helperColabIds }),
@@ -354,6 +357,49 @@ export default function AdminNuevaTareaPage() {
                   placeholder="Describe los detalles de la tarea..."
                 />
               </div>
+
+              {/* Optional purpose / context — toggle to keep flow lean */}
+              {!showPurpose ? (
+                <button
+                  type="button"
+                  onClick={() => setShowPurpose(true)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  Agregar contexto
+                  <span className="text-muted-foreground/60">— por qué se está creando (opcional)</span>
+                </button>
+              ) : (
+                <div className="space-y-2 rounded-lg border border-dashed bg-muted/20 p-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium flex items-center gap-1.5">
+                      <MessageSquareText className="h-3 w-3" />
+                      ¿Por qué se está creando esta tarea?
+                      <span className="text-muted-foreground font-normal">(opcional)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPurpose(false);
+                        setPurpose("");
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                  <textarea
+                    className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground"
+                    value={purpose}
+                    onChange={(e) => setPurpose(e.target.value)}
+                    placeholder="Ej: El cliente lanza producto el viernes y necesita esto antes…"
+                    maxLength={1000}
+                  />
+                  <p className="text-[10px] text-muted-foreground/70">
+                    Este contexto ayuda a priorizar mejor y entender qué es importante para el cliente.
+                  </p>
+                </div>
+              )}
 
               {/* Dynamic form fields */}
               {formFields && formFields.length > 0 && (

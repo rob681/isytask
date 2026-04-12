@@ -393,6 +393,13 @@ model Task {
 
   formData       Json?
 
+  // Optional context — feeds agent memory, never required, never shown to client
+  purpose       String?   @db.Text
+
+  // Outcome — filled at FINALIZADA by the team member
+  outcomeNote   String?   @db.Text
+  outcomeRating Int?      // 1-5 satisfaction rating
+
   // Cross-app: Isysocial integration (optional link to a Post)
   isysocialPostId   String?   // ID of the linked Post in isysocial schema
   isysocialPostType String?   // "IMAGE" | "CAROUSEL" | "STORY" | "REEL" | "VIDEO" | "TEXT"

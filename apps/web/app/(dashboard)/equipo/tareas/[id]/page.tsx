@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
 import { VideoReviewPanel } from "@/components/video/video-review-panel";
+import { OutcomeModal } from "@/components/tasks/outcome-modal";
 import {
   TASK_STATUS_LABELS,
   TASK_STATUS_COLORS,
@@ -90,6 +91,7 @@ export default function EquipoTaskDetailPage() {
   const [comment, setComment] = useState("");
   const [isQuestion, setIsQuestion] = useState(false);
   const [statusNote, setStatusNote] = useState("");
+  const [outcomeModalOpen, setOutcomeModalOpen] = useState(false);
 
   const utils = trpc.useUtils();
   const { data: task, isLoading } = trpc.tasks.getById.useQuery({ id: taskId });
@@ -98,6 +100,7 @@ export default function EquipoTaskDetailPage() {
     onSuccess: () => {
       utils.tasks.getById.invalidate({ id: taskId });
       setStatusNote("");
+      setOutcomeModalOpen(false);
     },
   });
 
@@ -245,6 +248,12 @@ export default function EquipoTaskDetailPage() {
                           variant={action.variant}
                           size="sm"
                           onClick={() => {
+                            // FINALIZADA opens the outcome modal so user can capture
+                            // optional note + rating before closing the task.
+                            if (status === "FINALIZADA") {
+                              setOutcomeModalOpen(true);
+                              return;
+                            }
                             updateStatus.mutate({
                               taskId: task.id,
                               newStatus: status as any,
@@ -322,14 +331,14 @@ export default function EquipoTaskDetailPage() {
                 </div>
 
                 {/* Team assigned */}
-                {(task as any).assignments?.length > 0 && (
+                {task.assignments.length > 0 && (
                   <div className="pt-3 border-t">
                     <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
                       <Users className="h-3 w-3" />
                       Equipo asignado
                     </h4>
                     <div className="flex flex-wrap gap-2">
-                      {(task as any).assignments.map((a: any) => (
+                      {task.assignments.map((a) => (
                         <div key={a.id} className="flex items-center gap-1.5 text-sm bg-muted/50 px-2 py-1 rounded-md">
                           <User className="h-3 w-3 text-muted-foreground" />
                           {a.colaborador.user.name}
@@ -696,6 +705,23 @@ export default function EquipoTaskDetailPage() {
           </div>
         </div>
       </div>
+
+      <OutcomeModal
+        open={outcomeModalOpen}
+        taskTitle={task.title}
+        isLoading={updateStatus.isLoading}
+        errorMessage={updateStatus.error?.message}
+        onClose={() => setOutcomeModalOpen(false)}
+        onConfirm={({ outcomeNote, outcomeRating }) => {
+          updateStatus.mutate({
+            taskId: task.id,
+            newStatus: "FINALIZADA",
+            note: statusNote || undefined,
+            outcomeNote,
+            outcomeRating,
+          });
+        }}
+      />
     </>
   );
 }

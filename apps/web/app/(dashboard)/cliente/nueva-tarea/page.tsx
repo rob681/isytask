@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
 import { TASK_CATEGORY_LABELS, TASK_CATEGORY_BADGE_COLORS, getClientTaskPhrase } from "@isytask/shared";
-import { Clock, Info, FileText, X, Sparkles, Upload, CheckCircle2, Paperclip, Trash2, Loader2, Bot, Rocket } from "lucide-react";
+import { Clock, Info, FileText, X, Sparkles, Upload, CheckCircle2, Paperclip, Trash2, Loader2, Bot, Rocket, Plus, MessageSquareText } from "lucide-react";
 import { ChatPanel } from "@/components/ai-chat/chat-panel";
 
 export default function NuevaTareaPage() {
@@ -28,6 +28,9 @@ export default function NuevaTareaPage() {
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [aiCategoryTitle, setAiCategoryTitle] = useState("");
   const [userOverrodeCategory, setUserOverrodeCategory] = useState(false);
+  // Optional context — surfaced via toggle, not required. Captures *why*.
+  const [showPurpose, setShowPurpose] = useState(false);
+  const [purpose, setPurpose] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: services } = trpc.services.list.useQuery();
@@ -165,6 +168,8 @@ export default function NuevaTareaPage() {
     setDescription("");
     setCategory("NORMAL");
     setFormData({});
+    setPurpose("");
+    setShowPurpose(false);
   };
 
   const handleFileUpload = async (files: FileList | null) => {
@@ -226,6 +231,7 @@ export default function NuevaTareaPage() {
       category,
       formData,
       skippedFields: skippedFields.size > 0 ? Array.from(skippedFields) : undefined,
+      purpose: purpose.trim() ? purpose.trim() : undefined,
     });
   };
 
@@ -415,6 +421,49 @@ export default function NuevaTareaPage() {
                       placeholder="Describe lo que necesitas..."
                     />
                   </div>
+
+                  {/* Optional purpose / context — toggle to keep flow lean */}
+                  {!showPurpose ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowPurpose(true)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Agregar contexto
+                      <span className="text-muted-foreground/60">— cuéntanos por qué (opcional)</span>
+                    </button>
+                  ) : (
+                    <div className="space-y-2 rounded-lg border border-dashed bg-muted/20 p-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium flex items-center gap-1.5">
+                          <MessageSquareText className="h-3 w-3" />
+                          ¿Por qué necesitas esta tarea?
+                          <span className="text-muted-foreground font-normal">(opcional)</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowPurpose(false);
+                            setPurpose("");
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                      <textarea
+                        className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground"
+                        value={purpose}
+                        onChange={(e) => setPurpose(e.target.value)}
+                        placeholder="Ej: Estamos lanzando un producto nuevo el viernes y necesitamos esto antes…"
+                        maxLength={1000}
+                      />
+                      <p className="text-[10px] text-muted-foreground/70">
+                        Este contexto nos ayuda a priorizar mejor y a entender lo que es importante para ti.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Dynamic form fields */}
                   {formFields && formFields.length > 0 && (

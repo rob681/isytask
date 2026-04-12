@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
 import { VideoReviewPanel } from "@/components/video/video-review-panel";
+import { OutcomeModal } from "@/components/tasks/outcome-modal";
 import {
   TASK_STATUS_LABELS,
   TASK_STATUS_COLORS,
@@ -101,6 +102,7 @@ export default function AdminTaskDetailPage() {
   const [isInternal, setIsInternal] = useState(false);
   const [statusNote, setStatusNote] = useState("");
   const [selectedColaboradorId, setSelectedColaboradorId] = useState("");
+  const [outcomeModalOpen, setOutcomeModalOpen] = useState(false);
 
   const utils = trpc.useUtils();
   const { data: task, isLoading } = trpc.tasks.getById.useQuery({ id: taskId });
@@ -114,6 +116,7 @@ export default function AdminTaskDetailPage() {
     onSuccess: () => {
       utils.tasks.getById.invalidate({ id: taskId });
       setStatusNote("");
+      setOutcomeModalOpen(false);
     },
   });
 
@@ -271,9 +274,9 @@ export default function AdminTaskDetailPage() {
                   </h4>
 
                   {/* Current assignees list */}
-                  {(task as any).assignments?.length > 0 ? (
+                  {task.assignments.length > 0 ? (
                     <div className="space-y-1 mb-3">
-                      {(task as any).assignments.map((a: any) => (
+                      {task.assignments.map((a) => (
                         <div
                           key={a.id}
                           className="flex items-center justify-between p-2 rounded-md bg-muted/50 group"
@@ -319,7 +322,7 @@ export default function AdminTaskDetailPage() {
                       </option>
                       {teamMembers?.users
                         .filter((u) => u.colaboradorProfile)
-                        .filter((u) => !(task as any).assignments?.some((a: any) => a.colaboradorId === u.colaboradorProfile!.id))
+                        .filter((u) => !task.assignments.some((a) => a.colaboradorId === u.colaboradorProfile!.id))
                         .map((u) => (
                           <option key={u.colaboradorProfile!.id} value={u.colaboradorProfile!.id}>
                             {u.name}
@@ -368,6 +371,12 @@ export default function AdminTaskDetailPage() {
                             variant={action.variant}
                             size="sm"
                             onClick={() => {
+                              // FINALIZADA opens the outcome modal so admin can capture
+                              // optional note + rating before closing the task.
+                              if (status === "FINALIZADA") {
+                                setOutcomeModalOpen(true);
+                                return;
+                              }
                               updateStatus.mutate({
                                 taskId: task.id,
                                 newStatus: status as any,
@@ -421,9 +430,9 @@ export default function AdminTaskDetailPage() {
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">
                       Equipo
                     </h4>
-                    {(task as any).assignments?.length > 0 ? (
+                    {task.assignments.length > 0 ? (
                       <div className="space-y-0.5">
-                        {(task as any).assignments.map((a: any) => (
+                        {task.assignments.map((a) => (
                           <span key={a.id} className="text-sm flex items-center gap-1">
                             <User className="h-3 w-3" />
                             {a.colaborador.user.name}
@@ -807,6 +816,23 @@ export default function AdminTaskDetailPage() {
           </div>
         </div>
       </div>
+
+      <OutcomeModal
+        open={outcomeModalOpen}
+        taskTitle={task.title}
+        isLoading={updateStatus.isLoading}
+        errorMessage={updateStatus.error?.message}
+        onClose={() => setOutcomeModalOpen(false)}
+        onConfirm={({ outcomeNote, outcomeRating }) => {
+          updateStatus.mutate({
+            taskId: task.id,
+            newStatus: "FINALIZADA",
+            note: statusNote || undefined,
+            outcomeNote,
+            outcomeRating,
+          });
+        }}
+      />
     </>
   );
 }
