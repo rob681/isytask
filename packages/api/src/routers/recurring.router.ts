@@ -59,6 +59,10 @@ export const recurringRouter = router({
           include: { user: { select: { name: true } } },
         },
         createdBy: { select: { name: true } },
+        assignments: {
+          include: { colaborador: { include: { user: { select: { name: true } } } } },
+          orderBy: { role: "asc" },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -267,6 +271,22 @@ export const recurringRouter = router({
           },
         });
 
+        // Copy recurring task assignments to the new task
+        const rtAssignments = await ctx.db.recurringTaskAssignment.findMany({
+          where: { recurringTaskId: rt.id },
+        });
+        if (rtAssignments.length > 0) {
+          await ctx.db.taskAssignment.createMany({
+            data: rtAssignments.map((a) => ({
+              taskId: task.id,
+              colaboradorId: a.colaboradorId,
+              role: a.role as "PRIMARY" | "HELPER",
+              assignedAt: new Date(),
+            })),
+            skipDuplicates: true,
+          });
+        }
+
         // Update recurring task
         const nextRunAt = calculateNextRunAt(
           rt.recurrenceType,
@@ -310,4 +330,42 @@ export const recurringRouter = router({
 
     return { executed: results.length, tasks: results };
   }),
+
+  addAssignment: adminProcedure
+    .input(z.object({
+      recurringTaskId: z.string(),
+      colaboradorId: z.string().optional(),
+      userId: z.string().optional(),
+      role: z.enum(["PRIMARY", "HELPER"]).default("HELPER"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
+      const rt = await ctx.db.recurringTask.findFirst({ where: { id: input.recurringTaskId, agencyId } });
+      if (!rt) throw new TRPCError({ code: "NOT_FOUND" });
+
+      let colaboradorId = input.colaboradorId;
+      if (!colaboradorId && input.userId) {
+        const profile = await ctx.db.colaboradorProfile.findFirst({ where: { userId: input.userId } });
+        if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Perfil de colaborador no encontrado" });
+        colaboradorId = profile.id;
+      }
+      if (!colaboradorId) throw new TRPCError({ code: "BAD_REQUEST", message: "Se requiere colaboradorId o userId" });
+
+      return ctx.db.recurringTaskAssignment.upsert({
+        where: { recurringTaskId_colaboradorId: { recurringTaskId: input.recurringTaskId, colaboradorId } },
+        create: { recurringTaskId: input.recurringTaskId, colaboradorId, role: input.role },
+        update: { role: input.role },
+      });
+    }),
+
+  removeAssignment: adminProcedure
+    .input(z.object({ recurringTaskId: z.string(), colaboradorId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
+      const rt = await ctx.db.recurringTask.findFirst({ where: { id: input.recurringTaskId, agencyId } });
+      if (!rt) throw new TRPCError({ code: "NOT_FOUND" });
+      return ctx.db.recurringTaskAssignment.deleteMany({
+        where: { recurringTaskId: input.recurringTaskId, colaboradorId: input.colaboradorId },
+      });
+    }),
 });

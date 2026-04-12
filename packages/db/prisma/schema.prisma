@@ -269,11 +269,12 @@ model ColaboradorProfile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  assignedTasks   Task[]
-  taskAssignments TaskAssignment[]
-  assignedClients ColaboradorClientAssignment[]
-  recurringTasks  RecurringTask[]               @relation("RecurringTaskColaborador")
-  velocityMetrics ColaboradorVelocityMetric[]
+  assignedTasks            Task[]
+  taskAssignments          TaskAssignment[]
+  assignedClients          ColaboradorClientAssignment[]
+  recurringTasks           RecurringTask[]               @relation("RecurringTaskColaborador")
+  recurringTaskAssignments RecurringTaskAssignment[]
+  velocityMetrics          ColaboradorVelocityMetric[]
 
   @@map("colaborador_profiles")
 }
@@ -636,6 +637,10 @@ model RecurringTask {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Multi-assignment support — mirrors Task's pattern.
+  // Helpers added here are pre-assigned when the cron creates the Task.
+  assignments RecurringTaskAssignment[]
+
   @@index([agencyId, isActive])
   @@index([isActive, nextRunAt])
   @@map("recurring_tasks")
@@ -769,6 +774,20 @@ model TaskAssignment {
   @@unique([taskId, colaboradorId])
   @@index([colaboradorId])
   @@map("task_assignments")
+}
+
+// ─── RECURRING TASK ASSIGNMENTS ──────────────────────────────────────────────
+model RecurringTaskAssignment {
+  id               String             @id @default(cuid())
+  recurringTaskId  String
+  recurringTask    RecurringTask      @relation(fields: [recurringTaskId], references: [id], onDelete: Cascade)
+  colaboradorId    String
+  colaborador      ColaboradorProfile @relation(fields: [colaboradorId], references: [id])
+  role             String             @default("HELPER") // "PRIMARY" | "HELPER"
+  createdAt        DateTime           @default(now())
+
+  @@unique([recurringTaskId, colaboradorId])
+  @@map("recurring_task_assignments")
 }
 
 // ──────────────────────────────────────────────
