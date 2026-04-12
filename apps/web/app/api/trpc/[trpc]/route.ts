@@ -5,7 +5,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-change-me";
+const JWT_SECRET = process.env.NEXTAUTH_SECRET as string;
+if (!JWT_SECRET) {
+  throw new Error("NEXTAUTH_SECRET environment variable is required");
+}
 
 /** Extract session from Bearer token (mobile) or NextAuth cookie (web) */
 async function resolveSession(req: Request): Promise<Session | null> {

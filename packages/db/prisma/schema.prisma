@@ -48,6 +48,7 @@ enum TaskCategory {
 enum TokenType {
   INVITATION
   PASSWORD_RESET
+  MFA_SETUP
 }
 
 enum NotificationChannel {
@@ -72,7 +73,6 @@ enum NotificationType {
   ISYSOCIAL_POST_APROBADO
   ISYSOCIAL_OAUTH_EXPIRADO
   ISYSOCIAL_CONTENIDO_PUBLICADO
-  MFA_SETUP
 }
 
 enum CrossAppEventStatus {
@@ -110,20 +110,20 @@ enum Product {
 // ──────────────────────────────────────────────
 
 model Agency {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  logoUrl      String?
-  logoWhiteUrl String?
-  maxUsers     Int      @default(50)
-  planTier     String   @default("basic")
-  billingEmail String?
-  trialEndsAt  DateTime?
-  isActive        Boolean  @default(true)
-  hideBranding    Boolean  @default(false)
-  customAppName   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String    @id @default(cuid())
+  name          String
+  slug          String    @unique
+  logoUrl       String?
+  logoWhiteUrl  String?
+  maxUsers      Int       @default(50)
+  planTier      String    @default("basic")
+  billingEmail  String?
+  trialEndsAt   DateTime?
+  isActive      Boolean   @default(true)
+  hideBranding  Boolean   @default(false)
+  customAppName String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   // Ecosystem: Stripe customer shared across products
   stripeCustomerId String? @unique
@@ -143,19 +143,19 @@ model Agency {
 // ──────────────────────────────────────────────
 
 model Subscription {
-  id            String   @id @default(cuid())
-  agencyId      String
-  agency        Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
-  product       Product
-  planTier      String   // "basic" | "pro" | "enterprise"
+  product  Product
+  planTier String // "basic" | "pro" | "enterprise"
 
   // Stripe
   stripeSubscriptionId String? @unique
   stripePriceId        String?
 
   // Billing status
-  status             String   @default("trial") // "active" | "past_due" | "canceled" | "trial"
+  status             String    @default("trial") // "active" | "past_due" | "canceled" | "trial"
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
   trialEndsAt        DateTime?
@@ -190,37 +190,40 @@ model CrossProductDiscount {
 // ──────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String  @id @default(cuid())
+  email        String  @unique
   passwordHash String?
   name         String
   phone        String?
   avatarUrl    String?
   role         Role
-  isActive     Boolean  @default(true)
+  isActive     Boolean @default(true)
+
   // Account lockout — incremented on every failed login, reset on success
   loginAttempts Int       @default(0)
   lockedUntil   DateTime?
-  // MFA / TOTP
+
+  // MFA / TOTP — optional for ADMIN and SUPER_ADMIN
   mfaEnabled Boolean @default(false)
   totpSecret String? // stored encrypted
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
 
-  agencyId     String?
-  agency       Agency?  @relation(fields: [agencyId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  clientProfile      ClientProfile?
-  colaboradorProfile ColaboradorProfile?
-  notifications      Notification[]
-  pushSubscriptions  PushSubscription[]
-  expoPushTokens     ExpoPushToken[]
-  sentComments       TaskComment[]
-  taskStatusChanges  TaskStatusLog[]
+  agencyId String?
+  agency   Agency? @relation(fields: [agencyId], references: [id])
+
+  clientProfile         ClientProfile?
+  colaboradorProfile    ColaboradorProfile?
+  notifications         Notification[]
+  pushSubscriptions     PushSubscription[]
+  expoPushTokens        ExpoPushToken[]
+  sentComments          TaskComment[]
+  taskStatusChanges     TaskStatusLog[]
   createdRecurringTasks RecurringTask[]
-  tokens            Token[]
-  whatsappContact   WhatsAppContact?
-  videoComments     VideoComment[] @relation("VideoCommentAuthor")
+  tokens                Token[]
+  whatsappContact       WhatsAppContact?
+  videoComments         VideoComment[]      @relation("VideoCommentAuthor")
 
   @@index([agencyId])
   @@map("users")
@@ -243,12 +246,12 @@ model ClientProfile {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  tasks               Task[]
+  tasks                Task[]
   assignedColaboradors ColaboradorClientAssignment[]
-  allowedServices     ClientServiceAccess[]
-  recurringTasks      RecurringTask[]
-  whatsappContacts    WhatsAppContact[]
-  responseMetrics     ClientResponseMetric[]
+  allowedServices      ClientServiceAccess[]
+  recurringTasks       RecurringTask[]
+  whatsappContacts     WhatsAppContact[]
+  responseMetrics      ClientResponseMetric[]
 
   @@map("client_profiles")
 }
@@ -266,11 +269,11 @@ model ColaboradorProfile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  assignedTasks    Task[]
-  taskAssignments  TaskAssignment[]
-  assignedClients  ColaboradorClientAssignment[]
-  recurringTasks   RecurringTask[] @relation("RecurringTaskColaborador")
-  velocityMetrics  ColaboradorVelocityMetric[]
+  assignedTasks   Task[]
+  taskAssignments TaskAssignment[]
+  assignedClients ColaboradorClientAssignment[]
+  recurringTasks  RecurringTask[]               @relation("RecurringTaskColaborador")
+  velocityMetrics ColaboradorVelocityMetric[]
 
   @@map("colaborador_profiles")
 }
@@ -321,12 +324,12 @@ model Service {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  agencyId       String
-  agency         Agency   @relation(fields: [agencyId], references: [id])
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id])
 
   // AI Agent configuration
-  agentEnabled      Boolean  @default(false)
-  agentInstructions String?  @db.Text
+  agentEnabled      Boolean @default(false)
+  agentInstructions String? @db.Text
   agentModel        String?
 
   formFields     ServiceFormField[]
@@ -341,19 +344,19 @@ model Service {
 }
 
 model ServiceFormField {
-  id          String    @id @default(cuid())
+  id          String         @id @default(cuid())
   serviceId   String
-  service     Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  service     Service        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   fieldName   String
   label       String
   fieldType   FieldType
   placeholder String?
-  isRequired  Boolean   @default(false)
-  sortOrder   Int       @default(0)
+  isRequired  Boolean        @default(false)
+  sortOrder   Int            @default(0)
   options     Json?
   validation  Json?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   responses   TaskResponse[]
 
   @@unique([serviceId, fieldName])
@@ -365,47 +368,50 @@ model ServiceFormField {
 // ──────────────────────────────────────────────
 
 model Task {
-  id            String       @id @default(cuid())
+  id            String              @id @default(cuid())
   taskNumber    Int
   clientId      String
-  client        ClientProfile @relation(fields: [clientId], references: [id])
+  client        ClientProfile       @relation(fields: [clientId], references: [id])
   serviceId     String
-  service       Service      @relation(fields: [serviceId], references: [id])
+  service       Service             @relation(fields: [serviceId], references: [id])
   colaboradorId String?
   colaborador   ColaboradorProfile? @relation(fields: [colaboradorId], references: [id])
 
-  agencyId      String
-  agency        Agency       @relation(fields: [agencyId], references: [id])
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id])
 
-  title          String
-  description    String?
-  category       TaskCategory
-  status         TaskStatus   @default(RECIBIDA)
+  title       String
+  description String?
+  category    TaskCategory
+  status      TaskStatus   @default(RECIBIDA)
+
+  // Optional context provided at creation — feeds future agent memory
+  // Surfaced via a "Agregar contexto" toggle, never required
+  purpose String? @db.Text
 
   estimatedHours Int
-  extraHours     Int          @default(0)
+  extraHours     Int       @default(0)
   startedAt      DateTime?
   completedAt    DateTime?
   dueAt          DateTime?
 
-  revisionsUsed  Int          @default(0)
+  // Outcome captured after task completion — feeds future agent memory
+  // Set via a modal on transition to COMPLETED, all fields optional
+  outcomeNote   String?   @db.Text // free-form, ~500 chars expected
+  outcomeRating Int? // 1-5, user-reported satisfaction with how it went
+  outcomeAt     DateTime? // when the outcome was recorded (may differ from completedAt)
+
+  revisionsUsed  Int @default(0)
   revisionsLimit Int
 
-  formData       Json?
-
-  // Optional context — feeds agent memory, never required, never shown to client
-  purpose       String?   @db.Text
-
-  // Outcome — filled at FINALIZADA by the team member
-  outcomeNote   String?   @db.Text
-  outcomeRating Int?      // 1-5 satisfaction rating
+  formData Json?
 
   // Cross-app: Isysocial integration (optional link to a Post)
-  isysocialPostId   String?   // ID of the linked Post in isysocial schema
-  isysocialPostType String?   // "IMAGE" | "CAROUSEL" | "STORY" | "REEL" | "VIDEO" | "TEXT"
+  isysocialPostId   String? // ID of the linked Post in isysocial schema
+  isysocialPostType String? // "IMAGE" | "CAROUSEL" | "STORY" | "REEL" | "VIDEO" | "TEXT"
 
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   comments         TaskComment[]
   statusLog        TaskStatusLog[]
@@ -431,16 +437,16 @@ model Task {
 // ──────────────────────────────────────────────
 
 model TaskResponse {
-  id          String   @id @default(cuid())
-  taskId      String
-  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  fieldId     String
-  field       ServiceFormField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
-  fieldName   String
-  value       Json?
-  skipped     Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String           @id @default(cuid())
+  taskId    String
+  task      Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fieldId   String
+  field     ServiceFormField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  fieldName String
+  value     Json?
+  skipped   Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
   @@unique([taskId, fieldId])
   @@index([taskId])
@@ -488,12 +494,12 @@ model TaskComment {
 
 model VideoComment {
   id              String   @id @default(cuid())
-  mediaType       String   // "POST_MEDIA" | "TASK_FILE"
-  mediaId         String   // Foreign key to PostMedia.id or Task.id
+  mediaType       String // "POST_MEDIA" | "TASK_FILE"
+  mediaId         String // Foreign key to PostMedia.id or Task.id
   authorId        String
   author          User     @relation("VideoCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   content         String
-  timecodeSeconds Float?   // Timestamp in seconds (e.g., 15.5 for 15.5 seconds)
+  timecodeSeconds Float? // Timestamp in seconds (e.g., 15.5 for 15.5 seconds)
   isInternal      Boolean  @default(false)
   isResolved      Boolean  @default(false)
   createdAt       DateTime @default(now())
@@ -514,8 +520,8 @@ model TaskAttachment {
   fileName      String
   fileSize      Int
   mimeType      String
-  storagePath   String   // Supabase Storage path: "bucket/folder/file"
-  fileUrl       String   // Public URL from Supabase Storage
+  storagePath   String // Supabase Storage path: "bucket/folder/file"
+  fileUrl       String // Public URL from Supabase Storage
   uploadedById  String
   isDeliverable Boolean  @default(false)
   createdAt     DateTime @default(now())
@@ -602,33 +608,33 @@ model PlatformConfig {
 // ──────────────────────────────────────────────
 
 model RecurringTask {
-  id             String         @id @default(cuid())
-  clientId       String
-  client         ClientProfile  @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  serviceId      String
-  service        Service        @relation(fields: [serviceId], references: [id])
-  title          String
-  description    String?
-  category       TaskCategory   @default(NORMAL)
-  formData        Json?
-  colaboradorId   String?
-  colaborador     ColaboradorProfile? @relation("RecurringTaskColaborador", fields: [colaboradorId], references: [id])
+  id            String              @id @default(cuid())
+  clientId      String
+  client        ClientProfile       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceId     String
+  service       Service             @relation(fields: [serviceId], references: [id])
+  title         String
+  description   String?
+  category      TaskCategory        @default(NORMAL)
+  formData      Json?
+  colaboradorId String?
+  colaborador   ColaboradorProfile? @relation("RecurringTaskColaborador", fields: [colaboradorId], references: [id])
 
-  agencyId       String
-  agency         Agency         @relation(fields: [agencyId], references: [id])
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id])
 
   recurrenceType RecurrenceType
-  recurrenceDay  Int?           // 0-6 for weekly (0=Sunday), 1-31 for monthly
+  recurrenceDay  Int? // 0-6 for weekly (0=Sunday), 1-31 for monthly
   recurrenceTime String         @default("09:00")
 
-  isActive       Boolean        @default(true)
-  lastRunAt      DateTime?
-  nextRunAt      DateTime?
+  isActive  Boolean   @default(true)
+  lastRunAt DateTime?
+  nextRunAt DateTime?
 
-  createdById    String
-  createdBy      User           @relation(fields: [createdById], references: [id])
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([agencyId, isActive])
   @@index([isActive, nextRunAt])
@@ -652,8 +658,8 @@ model TaskTemplate {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  agencyId    String
-  agency      Agency       @relation(fields: [agencyId], references: [id])
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id])
 
   @@index([agencyId])
   @@map("task_templates")
@@ -672,20 +678,20 @@ enum WhatsAppMessageStatus {
 }
 
 model WhatsAppContact {
-  id          String   @id @default(cuid())
-  phone       String   @unique // E.164 format: +521234567890
-  userId      String?  @unique
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  clientId    String?
-  client      ClientProfile? @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  displayName String?
-  isVerified  Boolean  @default(false)
-  isActive    Boolean  @default(true)
+  id            String         @id @default(cuid())
+  phone         String         @unique // E.164 format: +521234567890
+  userId        String?        @unique
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clientId      String?
+  client        ClientProfile? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  displayName   String?
+  isVerified    Boolean        @default(false)
+  isActive      Boolean        @default(true)
   lastMessageAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  messages    WhatsAppMessage[]
+  messages WhatsAppMessage[]
 
   @@index([phone])
   @@index([userId])
@@ -694,29 +700,29 @@ model WhatsAppContact {
 }
 
 model WhatsAppMessage {
-  id            String                 @id @default(cuid())
-  contactId     String
-  contact       WhatsAppContact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  id        String          @id @default(cuid())
+  contactId String
+  contact   WhatsAppContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   // Message provider IDs
-  twilioSid     String?                // Twilio message SID (null if from Meta)
-  metaMessageId String?                // Meta message ID (null if from Twilio)
-  provider      String                 @default("twilio") // "twilio" | "meta"
+  twilioSid     String? // Twilio message SID (null if from Meta)
+  metaMessageId String? // Meta message ID (null if from Twilio)
+  provider      String  @default("twilio") // "twilio" | "meta"
 
-  direction     String                 @default("inbound") // "inbound" | "outbound"
-  body          String                 @db.Text
-  mediaUrl      String?
-  mediaType     String?
+  direction String  @default("inbound") // "inbound" | "outbound"
+  body      String  @db.Text
+  mediaUrl  String?
+  mediaType String?
 
   // Task matching
-  status        WhatsAppMessageStatus  @default(RECEIVED)
+  status        WhatsAppMessageStatus @default(RECEIVED)
   matchedTaskId String?
-  matchedTask   Task?                  @relation(fields: [matchedTaskId], references: [id], onDelete: SetNull)
-  commentId     String?                // The TaskComment created from this message
-  aiConfidence  Float?                 // 0-1 confidence of the AI match
-  aiReasoning   String?                // Why the AI matched to this task
+  matchedTask   Task?                 @relation(fields: [matchedTaskId], references: [id], onDelete: SetNull)
+  commentId     String? // The TaskComment created from this message
+  aiConfidence  Float? // 0-1 confidence of the AI match
+  aiReasoning   String? // Why the AI matched to this task
 
-  createdAt     DateTime               @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([twilioSid], name: "twilio_unique")
   @@unique([metaMessageId], name: "meta_unique")
@@ -751,13 +757,13 @@ model Token {
 // ──────────────────────────────────────────────
 
 model TaskAssignment {
-  id            String              @id @default(cuid())
+  id            String             @id @default(cuid())
   taskId        String
-  task          Task                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task          Task               @relation(fields: [taskId], references: [id], onDelete: Cascade)
   colaboradorId String
-  colaborador   ColaboradorProfile  @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  role          TaskAssignmentRole  @default(HELPER)
-  assignedAt    DateTime            @default(now())
+  colaborador   ColaboradorProfile @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  role          TaskAssignmentRole @default(HELPER)
+  assignedAt    DateTime           @default(now())
   assignedById  String?
 
   @@unique([taskId, colaboradorId])
@@ -776,24 +782,24 @@ enum RiskLevel {
 }
 
 model RiskAssessment {
-  id        String    @id @default(cuid())
-  taskId    String    @unique
-  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  agencyId  String
+  id       String @id @default(cuid())
+  taskId   String @unique
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agencyId String
 
   // Risk factors (computed)
-  riskScore                    Float     // 0-100
-  riskLevel                    RiskLevel @default(GREEN)
-  daysUntilDeadline            Int?
-  daysSinceLastClientResponse  Int?
-  daysSinceLastUpdate          Int
-  assigneeActiveTaskCount      Int?
-  clientAvgApprovalDays        Float?    // historical: how long this client takes to approve
-  teamAvgCompletionDays        Float?    // historical: how long this team member takes
+  riskScore                   Float // 0-100
+  riskLevel                   RiskLevel @default(GREEN)
+  daysUntilDeadline           Int?
+  daysSinceLastClientResponse Int?
+  daysSinceLastUpdate         Int
+  assigneeActiveTaskCount     Int?
+  clientAvgApprovalDays       Float? // historical: how long this client takes to approve
+  teamAvgCompletionDays       Float? // historical: how long this team member takes
 
   // AI-generated insights
-  prediction      String    @db.Text // Natural language prediction
-  suggestedAction String?   @db.Text // What to do about it
+  prediction      String  @db.Text // Natural language prediction
+  suggestedAction String? @db.Text // What to do about it
 
   analyzedAt DateTime @default(now())
   createdAt  DateTime @default(now())
@@ -805,18 +811,18 @@ model RiskAssessment {
 }
 
 model ClientResponseMetric {
-  id        String   @id @default(cuid())
-  clientId  String
-  client    ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  agencyId  String
+  id       String        @id @default(cuid())
+  clientId String
+  client   ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  agencyId String
 
-  avgApprovalDays    Float   // average days to approve/respond
-  avgResponseDays    Float   // average days between comments
-  tasksAnalyzed      Int     // how many tasks were used to calculate
+  avgApprovalDays     Float // average days to approve/respond
+  avgResponseDays     Float // average days between comments
+  tasksAnalyzed       Int // how many tasks were used to calculate
   slowestApprovalDays Float? // worst case
 
-  month     Int
-  year      Int
+  month Int
+  year  Int
 
   updatedAt DateTime @updatedAt
 
@@ -826,17 +832,17 @@ model ClientResponseMetric {
 }
 
 model ColaboradorVelocityMetric {
-  id             String   @id @default(cuid())
-  colaboradorId  String
-  colaborador    ColaboradorProfile @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  agencyId       String
+  id            String             @id @default(cuid())
+  colaboradorId String
+  colaborador   ColaboradorProfile @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  agencyId      String
 
-  avgCompletionDays  Float   // average days to complete a task
-  tasksCompleted     Int
-  onTimeRate         Float   // % of tasks completed before deadline
+  avgCompletionDays Float // average days to complete a task
+  tasksCompleted    Int
+  onTimeRate        Float // % of tasks completed before deadline
 
-  month     Int
-  year      Int
+  month Int
+  year  Int
 
   updatedAt DateTime @updatedAt
 
@@ -850,25 +856,25 @@ model ColaboradorVelocityMetric {
 // ──────────────────────────────────────────────
 
 model CrossAppEvent {
-  id          String              @id @default(cuid())
-  sourceApp   Product             // ISYTASK | ISYSOCIAL
-  targetApp   Product
-  eventType   String              // e.g. "POST_REJECTED", "TASK_FINALIZADA", "OAUTH_EXPIRED"
-  agencyId    String
-  status      CrossAppEventStatus @default(PENDING)
+  id        String              @id @default(cuid())
+  sourceApp Product // ISYTASK | ISYSOCIAL
+  targetApp Product
+  eventType String // e.g. "POST_REJECTED", "TASK_FINALIZADA", "OAUTH_EXPIRED"
+  agencyId  String
+  status    CrossAppEventStatus @default(PENDING)
 
   // Optional references for traceability
-  taskId            String?
-  task              Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  isysocialPostId   String? // Post ID in isysocial schema (no FK — cross-schema)
+  taskId          String?
+  task            Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  isysocialPostId String? // Post ID in isysocial schema (no FK — cross-schema)
 
   // Event payload (flexible JSON for any event-specific data)
-  payload     Json    @default("{}")
+  payload Json @default("{}")
 
   // Processing
   errorMessage String?
   processedAt  DateTime?
-  retryCount   Int      @default(0)
+  retryCount   Int       @default(0)
 
   createdAt DateTime @default(now())
 
@@ -877,4 +883,28 @@ model CrossAppEvent {
   @@index([taskId])
   @@index([isysocialPostId])
   @@map("cross_app_events")
+}
+
+// ──────────────────────────────────────────────
+// AUDIT LOG
+// ──────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  agencyId   String?
+  userId     String? // null = system action
+  action     String // USER_LOGIN, TASK_STATUS_CHANGED, USER_DELETED, etc.
+  entityType String? // Task, User, Service, etc.
+  entityId   String? // PK of the affected record
+  oldValue   Json? // state before (for updates)
+  newValue   Json? // state after
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([agencyId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
