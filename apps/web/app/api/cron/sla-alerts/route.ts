@@ -67,6 +67,11 @@ export async function POST(req: NextRequest) {
         service: { select: { name: true } },
         client: { select: { userId: true } },
         colaborador: { select: { userId: true } },
+        assignments: {
+          select: {
+            colaborador: { select: { userId: true } },
+          },
+        },
       },
     });
 
@@ -87,9 +92,17 @@ export async function POST(req: NextRequest) {
     for (const task of atRiskTasks) {
       const recipients: string[] = [];
 
-      if (task.colaborador) {
-        recipients.push(task.colaborador.userId);
+      // Notify ALL assignees (primary + helpers) — multi-assignment aware.
+      // Also fall back to legacy `task.colaborador` in case some tasks were
+      // created before TaskAssignment dual-write was in place.
+      const assigneeUserIds = new Set<string>();
+      for (const a of task.assignments) {
+        if (a.colaborador?.userId) assigneeUserIds.add(a.colaborador.userId);
       }
+      if (task.colaborador?.userId) {
+        assigneeUserIds.add(task.colaborador.userId);
+      }
+      for (const uid of assigneeUserIds) recipients.push(uid);
 
       const admins = await db.user.findMany({
         where: { role: "ADMIN", isActive: true, agencyId: task.agencyId },

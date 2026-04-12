@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
+import { getPrimaryAssigneeName } from "@/lib/task-helpers";
 import { VideoReviewPanel } from "@/components/video/video-review-panel";
 import {
   TASK_STATUS_LABELS,
@@ -308,7 +309,7 @@ export default function ClienteTaskDetailPage() {
                     </h4>
                     <span className="text-sm flex items-center gap-1">
                       <User className="h-3 w-3" />
-                      {task.colaborador?.user.name ?? "Sin asignar"}
+                      {getPrimaryAssigneeName(task)}
                     </span>
                   </div>
                   <div>

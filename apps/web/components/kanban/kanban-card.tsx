@@ -8,6 +8,7 @@ import {
 } from "@isytask/shared";
 import { Clock, MessageCircle, Paperclip, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getPrimaryAssigneeName, hasAnyAssignee } from "@/lib/task-helpers";
 
 interface TaskData {
   id: string;
@@ -25,6 +26,10 @@ interface TaskData {
   colaborador?: {
     user: { name: string | null };
   } | null;
+  assignments?: Array<{
+    role: string;
+    colaborador: { user: { name: string | null } };
+  }>;
   _count: { comments: number; attachments: number };
 }
 
@@ -97,10 +102,10 @@ export function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardProps) {
             </span>
           )}
         </div>
-        {task.colaborador && (
+        {hasAnyAssignee(task) && (
           <span className="flex items-center gap-0.5 truncate max-w-[100px]">
             <User className="h-3 w-3 flex-shrink-0" />
-            {task.colaborador.user.name?.split(" ")[0]}
+            {getPrimaryAssigneeName(task).split(" ")[0]}
           </span>
         )}
       </div>

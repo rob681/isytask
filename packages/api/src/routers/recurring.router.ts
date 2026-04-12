@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, router, getAgencyId } from "../trpc";
 import { notifyTaskStatusChange } from "../lib/notifications";
+import { autoAssignColaboradorForClient } from "../lib/load-balancing";
 
 function calculateNextRunAt(
   recurrenceType: "DAILY" | "WEEKLY" | "MONTHLY",
@@ -203,31 +204,17 @@ export const recurringRouter = router({
 
     for (const rt of dueRecurring) {
       try {
-        // Use pre-assigned collaborator, or auto-assign
+        // Use pre-assigned collaborator, or auto-assign (load balanced
+        // across primary + helper roles via TaskAssignment).
+        // Recurring tasks count REVISION as active to avoid stacking work
+        // on a colab whose previous run is still being reviewed.
         let autoColaboradorId: string | null = rt.colaboradorId;
         if (!autoColaboradorId) {
-          const assignments = await ctx.db.colaboradorClientAssignment.findMany({
-            where: { clientId: rt.clientId },
-            select: { colaboradorId: true },
-          });
-
-          if (assignments.length === 1) {
-            autoColaboradorId = assignments[0].colaboradorId;
-          } else if (assignments.length > 1) {
-            const colabIds = assignments.map((a) => a.colaboradorId);
-            const taskCounts = await ctx.db.task.groupBy({
-              by: ["colaboradorId"],
-              where: {
-                colaboradorId: { in: colabIds },
-                status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA", "REVISION"] },
-              },
-              _count: true,
-            });
-            const countMap = new Map(taskCounts.map((tc) => [tc.colaboradorId, tc._count]));
-            autoColaboradorId = colabIds.sort(
-              (a, b) => (countMap.get(a) ?? 0) - (countMap.get(b) ?? 0)
-            )[0];
-          }
+          autoColaboradorId = await autoAssignColaboradorForClient(
+            ctx.db,
+            rt.clientId,
+            ["RECIBIDA", "EN_PROGRESO", "DUDA", "REVISION"]
+          );
         }
 
         // Calculate dueAt from SLA

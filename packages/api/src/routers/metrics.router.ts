@@ -456,7 +456,19 @@ export const metricsRouter = router({
   profitabilityByColaborador: dashboardProcedure
     .input(filterSchema.optional().default({}))
     .query(async ({ ctx, input }) => {
-      const where: any = { ...buildWhere(input, getAgencyId(ctx)), status: "FINALIZADA", startedAt: { not: null }, completedAt: { not: null }, colaboradorId: { not: null } };
+      // Multi-assignment aware: a task with N assignees credits all of them.
+      // We pull tasks where ANY assignee exists (legacy primary OR via
+      // TaskAssignment), then walk the deduped union to attribute hours.
+      const where: any = {
+        ...buildWhere(input, getAgencyId(ctx)),
+        status: "FINALIZADA",
+        startedAt: { not: null },
+        completedAt: { not: null },
+        OR: [
+          { colaboradorId: { not: null } },
+          { assignments: { some: {} } },
+        ],
+      };
       const tasks = await ctx.db.task.findMany({
         where,
         select: {
@@ -465,19 +477,26 @@ export const metricsRouter = router({
           startedAt: true,
           completedAt: true,
           colaboradorId: true,
+          assignments: { select: { colaboradorId: true } },
         },
       });
 
       const byColab = new Map<string, { estimated: number; actual: number; extra: number; count: number }>();
       tasks.forEach((t) => {
-        if (!t.colaboradorId) return;
+        const colabIds = new Set<string>();
+        for (const a of t.assignments) colabIds.add(a.colaboradorId);
+        if (t.colaboradorId) colabIds.add(t.colaboradorId);
+        if (colabIds.size === 0) return;
+
         const actualHrs = (t.completedAt!.getTime() - t.startedAt!.getTime()) / (1000 * 60 * 60);
-        const entry = byColab.get(t.colaboradorId) ?? { estimated: 0, actual: 0, extra: 0, count: 0 };
-        entry.estimated += t.estimatedHours;
-        entry.actual += actualHrs;
-        entry.extra += t.extraHours;
-        entry.count++;
-        byColab.set(t.colaboradorId, entry);
+        for (const colabId of colabIds) {
+          const entry = byColab.get(colabId) ?? { estimated: 0, actual: 0, extra: 0, count: 0 };
+          entry.estimated += t.estimatedHours;
+          entry.actual += actualHrs;
+          entry.extra += t.extraHours;
+          entry.count++;
+          byColab.set(colabId, entry);
+        }
       });
 
       const colabs = await ctx.db.colaboradorProfile.findMany({

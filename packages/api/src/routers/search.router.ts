@@ -37,13 +37,25 @@ export const searchRouter = router({
         }
       }
 
-      // Scope for colaboradores: only their assigned tasks
+      // Scope for colaboradores: only their assigned tasks (primary OR helper)
       if (role === "COLABORADOR") {
         const colabProfile = await ctx.db.colaboradorProfile.findUnique({
           where: { userId },
         });
         if (colabProfile) {
-          taskWhere.colaboradorId = colabProfile.id;
+          // Need to combine the existing search OR with the assignment filter,
+          // so we wrap them in AND.
+          const searchOr = taskWhere.OR;
+          delete taskWhere.OR;
+          taskWhere.AND = [
+            { OR: searchOr },
+            {
+              OR: [
+                { colaboradorId: colabProfile.id },
+                { assignments: { some: { colaboradorId: colabProfile.id } } },
+              ],
+            },
+          ];
         }
       }
 

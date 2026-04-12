@@ -86,20 +86,32 @@ export async function analyzeAgencyRisks({
   // ─── 3. Compute metrics per collaborator ───
   const colaboradorMetrics = await computeColaboradorMetrics(db, agencyId);
 
-  // ─── 4. Count active tasks per assignee ───
-  const assigneeTaskCounts = await db.task.groupBy({
-    by: ["colaboradorId"],
+  // ─── 4. Count active tasks per assignee (multi-assignment aware) ───
+  // Walks every active task and credits the count to ALL its assignees
+  // (legacy primary + every TaskAssignment row, deduped per task).
+  const activeTasksForCount = await db.task.findMany({
     where: {
       agencyId,
       status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA", "REVISION"] },
-      colaboradorId: { not: null },
+      OR: [
+        { colaboradorId: { not: null } },
+        { assignments: { some: {} } },
+      ],
     },
-    _count: true,
+    select: {
+      colaboradorId: true,
+      assignments: { select: { colaboradorId: true } },
+    },
   });
 
   const taskCountMap = new Map<string, number>();
-  for (const g of assigneeTaskCounts) {
-    if (g.colaboradorId) taskCountMap.set(g.colaboradorId, g._count);
+  for (const t of activeTasksForCount) {
+    const colabIds = new Set<string>();
+    for (const a of t.assignments) colabIds.add(a.colaboradorId);
+    if (t.colaboradorId) colabIds.add(t.colaboradorId);
+    for (const id of colabIds) {
+      taskCountMap.set(id, (taskCountMap.get(id) ?? 0) + 1);
+    }
   }
 
   // ─── 5. Analyze each task ───
@@ -149,20 +161,34 @@ export async function analyzeAgencyRisks({
           (now.getTime() - task.createdAt.getTime()) / (1000 * 60 * 60 * 24)
         );
 
-    // Assignee workload
-    const assigneeId = task.colaboradorId;
-    const assigneeActiveTaskCount = assigneeId
-      ? taskCountMap.get(assigneeId) ?? null
-      : null;
+    // Assignee workload — consider every assignee (primary + helpers).
+    // We use the MAX active count across them: if any one assignee is
+    // overloaded, the task carries that risk.
+    const taskAssigneeIds = new Set<string>();
+    for (const a of task.assignments) taskAssigneeIds.add(a.colaboradorId);
+    if (task.colaboradorId) taskAssigneeIds.add(task.colaboradorId);
+
+    let assigneeActiveTaskCount: number | null = null;
+    for (const id of taskAssigneeIds) {
+      const c = taskCountMap.get(id);
+      if (c != null && (assigneeActiveTaskCount == null || c > assigneeActiveTaskCount)) {
+        assigneeActiveTaskCount = c;
+      }
+    }
 
     // Client historical avg
     const clientAvgApprovalDays =
       clientMetrics.get(task.client.id) ?? null;
 
-    // Colaborador historical avg
-    const teamAvgCompletionDays = assigneeId
-      ? colaboradorMetrics.get(assigneeId) ?? null
-      : null;
+    // Colaborador historical avg — use the slowest among assignees so the
+    // prediction reflects the realistic upper bound.
+    let teamAvgCompletionDays: number | null = null;
+    for (const id of taskAssigneeIds) {
+      const v = colaboradorMetrics.get(id);
+      if (v != null && (teamAvgCompletionDays == null || v > teamAvgCompletionDays)) {
+        teamAvgCompletionDays = v;
+      }
+    }
 
     const factors: TaskRiskFactors = {
       taskId: task.id,
@@ -524,6 +550,11 @@ async function computeClientMetrics(
 
 /**
  * Compute average completion time per collaborator.
+ *
+ * Multi-assignment aware: each completed task credits its elapsed time to
+ * EVERY assignee (primary + helpers). This may overweight tasks with many
+ * assignees, but it gives helpers a real datapoint instead of leaving them
+ * with no historical signal at all.
  */
 async function computeColaboradorMetrics(
   db: PrismaClient,
@@ -536,25 +567,36 @@ async function computeColaboradorMetrics(
       agencyId,
       status: "FINALIZADA",
       completedAt: { not: null },
-      colaboradorId: { not: null },
       startedAt: { not: null },
+      OR: [
+        { colaboradorId: { not: null } },
+        { assignments: { some: {} } },
+      ],
     },
     select: {
       colaboradorId: true,
       startedAt: true,
       completedAt: true,
+      assignments: { select: { colaboradorId: true } },
     },
   });
 
   const colabTimes = new Map<string, number[]>();
   for (const task of completedTasks) {
-    if (!task.colaboradorId || !task.startedAt || !task.completedAt) continue;
+    if (!task.startedAt || !task.completedAt) continue;
+    const colabIds = new Set<string>();
+    for (const a of task.assignments) colabIds.add(a.colaboradorId);
+    if (task.colaboradorId) colabIds.add(task.colaboradorId);
+    if (colabIds.size === 0) continue;
+
     const days =
       (task.completedAt.getTime() - task.startedAt.getTime()) /
       (1000 * 60 * 60 * 24);
-    const arr = colabTimes.get(task.colaboradorId) || [];
-    arr.push(days);
-    colabTimes.set(task.colaboradorId, arr);
+    for (const colabId of colabIds) {
+      const arr = colabTimes.get(colabId) || [];
+      arr.push(days);
+      colabTimes.set(colabId, arr);
+    }
   }
 
   for (const [colabId, times] of colabTimes.entries()) {

@@ -17,6 +17,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { TableSkeleton } from "@/components/ui/skeleton";
+import { getPrimaryAssigneeName, hasAnyAssignee } from "@/lib/task-helpers";
 
 type StatusFilter = "RECIBIDA" | "EN_PROGRESO" | "DUDA" | "FINALIZADA" | "CANCELADA" | undefined;
 
@@ -114,8 +115,8 @@ export default function ClienteTareasPage() {
                       <MessageCircle className="h-3 w-3" />
                       {task._count.comments}
                     </span>
-                    {task.colaborador && (
-                      <span>PM: {task.colaborador.user.name}</span>
+                    {hasAnyAssignee(task) && (
+                      <span>PM: {getPrimaryAssigneeName(task)}</span>
                     )}
                     <span className="text-xs">
                       {format(new Date(task.createdAt), "dd MMM yyyy", {

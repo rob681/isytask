@@ -19,6 +19,7 @@ import { deleteFile as deleteStorageFile } from "../lib/supabase-storage";
 import { chatCompletion } from "../lib/openrouter";
 import { emitCrossAppEvent } from "../lib/cross-app-sync";
 import { addWorkingHours, getWorkingConfig } from "../lib/working-hours";
+import { autoAssignColaboradorForClient } from "../lib/load-balancing";
 
 async function getNextTaskNumber(db: any, agencyId: string): Promise<number> {
   const result = await db.task.aggregate({
@@ -184,35 +185,12 @@ export const tasksRouter = router({
         }
       }
 
-      // Auto-assign collaborator based on client assignments
-      let autoColaboradorId: string | null = null;
-      const assignments = await ctx.db.colaboradorClientAssignment.findMany({
-        where: { clientId: clientProfile.id },
-        select: { colaboradorId: true },
-      });
-
-      if (assignments.length === 1) {
-        autoColaboradorId = assignments[0].colaboradorId;
-      } else if (assignments.length > 1) {
-        // Pick the collaborator with fewest active tasks (load balancing)
-        const colabIds = assignments.map((a) => a.colaboradorId);
-        const taskCounts = await ctx.db.task.groupBy({
-          by: ["colaboradorId"],
-          where: {
-            colaboradorId: { in: colabIds },
-            status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA"] },
-          },
-          _count: true,
-        });
-
-        const countMap = new Map(
-          taskCounts.map((tc) => [tc.colaboradorId, tc._count])
-        );
-        // Sort by task count ascending, pick the least busy one
-        autoColaboradorId = colabIds.sort(
-          (a, b) => (countMap.get(a) ?? 0) - (countMap.get(b) ?? 0)
-        )[0];
-      }
+      // Auto-assign collaborator based on client assignments (load balanced
+      // across primary + helper roles via TaskAssignment).
+      const autoColaboradorId = await autoAssignColaboradorForClient(
+        ctx.db,
+        clientProfile.id
+      );
 
       // Calculate dueAt using working hours (respects agency schedule)
       let dueAt: Date | undefined;
@@ -232,6 +210,7 @@ export const tasksRouter = router({
           title: input.title,
           description: input.description,
           category: input.category,
+          ...(input.purpose && { purpose: input.purpose }),
           estimatedHours: service.estimatedHours,
           revisionsLimit: clientProfile.revisionLimitPerTask,
           formData: input.formData as any,
@@ -340,30 +319,10 @@ export const tasksRouter = router({
       }
 
       if (!colaboradorId) {
-        const assignments = await ctx.db.colaboradorClientAssignment.findMany({
-          where: { clientId: clientProfile.id },
-          select: { colaboradorId: true },
-        });
-
-        if (assignments.length === 1) {
-          colaboradorId = assignments[0].colaboradorId;
-        } else if (assignments.length > 1) {
-          const colabIds = assignments.map((a) => a.colaboradorId);
-          const taskCounts = await ctx.db.task.groupBy({
-            by: ["colaboradorId"],
-            where: {
-              colaboradorId: { in: colabIds },
-              status: { in: ["RECIBIDA", "EN_PROGRESO", "DUDA"] },
-            },
-            _count: true,
-          });
-          const countMap = new Map(
-            taskCounts.map((tc) => [tc.colaboradorId, tc._count])
-          );
-          colaboradorId = colabIds.sort(
-            (a, b) => (countMap.get(a) ?? 0) - (countMap.get(b) ?? 0)
-          )[0];
-        }
+        colaboradorId = await autoAssignColaboradorForClient(
+          ctx.db,
+          clientProfile.id
+        );
       }
 
       // Calculate dueAt using working hours (respects agency schedule)
@@ -398,6 +357,7 @@ export const tasksRouter = router({
           title: input.title,
           description: input.description,
           category: input.category,
+          ...(input.purpose && { purpose: input.purpose }),
           estimatedHours: service.estimatedHours,
           revisionsLimit: clientProfile.revisionLimitPerTask,
           formData: input.formData as any,
@@ -486,6 +446,10 @@ export const tasksRouter = router({
             colaborador: {
               include: { user: { select: { name: true } } },
             },
+            assignments: {
+              include: { colaborador: { include: { user: { select: { name: true } } } } },
+              orderBy: { role: "asc" },
+            },
             _count: { select: { comments: true } },
           },
           orderBy: { createdAt: "asc" },
@@ -527,6 +491,10 @@ export const tasksRouter = router({
           colaborador: {
             include: { user: { select: { name: true } } },
           },
+          assignments: {
+            include: { colaborador: { include: { user: { select: { name: true } } } } },
+            orderBy: { role: "asc" },
+          },
           service: { select: { name: true, slaHours: true } },
           comments: {
             select: { id: true, isQuestion: true },
@@ -540,6 +508,13 @@ export const tasksRouter = router({
 
       return tasks.map((task, index) => {
         const isOwn = task.clientId === clientProfile.id;
+        // Prefer the new assignments model (PRIMARY role); fall back to legacy
+        // colaborador for tasks created before the dual-write started.
+        const primaryAssignment = task.assignments.find((a) => a.role === "PRIMARY");
+        const primaryName =
+          primaryAssignment?.colaborador.user.name ??
+          task.colaborador?.user.name ??
+          null;
         return {
           id: task.id,
           isOwn,
@@ -554,7 +529,7 @@ export const tasksRouter = router({
           status: task.status,
           estimatedHours: task.estimatedHours + task.extraHours,
           elapsedHours: calculateElapsedHours(task.startedAt),
-          colaboradorName: isOwn ? task.colaborador?.user.name ?? null : null,
+          colaboradorName: isOwn ? primaryName : null,
           hasUnreadComments: isOwn ? task.comments.length > 0 : false,
           commentCount: isOwn ? task.comments.length : 0,
           createdAt: isOwn ? task.createdAt : undefined,
@@ -693,6 +668,12 @@ export const tasksRouter = router({
 
       const isRevisionReturn = (task.status === "FINALIZADA" || task.status === "REVISION") && input.newStatus === "EN_PROGRESO";
 
+      // Capture outcome only on transition to FINALIZADA — not on CANCELADA
+      // (cancellation outcome would have different semantics; deferred for now)
+      const captureOutcome =
+        input.newStatus === "FINALIZADA" &&
+        (input.outcomeNote !== undefined || input.outcomeRating !== undefined);
+
       const updated = await ctx.db.$transaction(async (tx) => {
         const updatedTask = await tx.task.update({
           where: { id: input.taskId },
@@ -702,6 +683,11 @@ export const tasksRouter = router({
               !task.startedAt && { startedAt: new Date() }),
             ...(["FINALIZADA", "CANCELADA"].includes(input.newStatus) && {
               completedAt: new Date(),
+            }),
+            ...(captureOutcome && {
+              outcomeNote: input.outcomeNote ?? null,
+              outcomeRating: input.outcomeRating ?? null,
+              outcomeAt: new Date(),
             }),
             ...(isRevisionReturn && {
                 revisionsUsed: { increment: 1 },
