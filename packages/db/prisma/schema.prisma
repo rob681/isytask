@@ -72,6 +72,7 @@ enum NotificationType {
   ISYSOCIAL_POST_APROBADO
   ISYSOCIAL_OAUTH_EXPIRADO
   ISYSOCIAL_CONTENIDO_PUBLICADO
+  MFA_SETUP
 }
 
 enum CrossAppEventStatus {
@@ -197,6 +198,12 @@ model User {
   avatarUrl    String?
   role         Role
   isActive     Boolean  @default(true)
+  // Account lockout — incremented on every failed login, reset on success
+  loginAttempts Int       @default(0)
+  lockedUntil   DateTime?
+  // MFA / TOTP
+  mfaEnabled Boolean @default(false)
+  totpSecret String? // stored encrypted
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

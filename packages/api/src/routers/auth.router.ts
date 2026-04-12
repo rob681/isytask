@@ -13,8 +13,10 @@ import {
 } from "@isytask/shared";
 import { validateToken, createToken } from "../lib/tokens";
 import { sendEmailNotification } from "../lib/email";
+import { audit } from "../lib/audit";
 
-const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-change-me";
+const JWT_SECRET = process.env.NEXTAUTH_SECRET;
+if (!JWT_SECRET) throw new Error("NEXTAUTH_SECRET is required");
 const JWT_EXPIRES_IN = "30d";
 
 // Rate limiting for password reset requests
@@ -170,6 +172,14 @@ export const authRouter = router({
         }),
       ]);
 
+      audit(ctx.db, {
+        userId: token.user.id,
+        action: "PASSWORD_CHANGED",
+        entityType: "User",
+        entityId: token.user.id,
+        newValue: { source: "invitation_setup" },
+      });
+
       return { success: true, email: token.user.email };
     }),
 
@@ -242,13 +252,20 @@ export const authRouter = router({
       await ctx.db.$transaction([
         ctx.db.user.update({
           where: { id: token.user.id },
-          data: { passwordHash },
+          data: { passwordHash, loginAttempts: 0, lockedUntil: null },
         }),
         ctx.db.token.update({
           where: { id: token.id },
           data: { usedAt: new Date() },
         }),
       ]);
+
+      audit(ctx.db, {
+        userId: token.user.id,
+        action: "PASSWORD_RESET_COMPLETED",
+        entityType: "User",
+        entityId: token.user.id,
+      });
 
       return { success: true, email: token.user.email };
     }),

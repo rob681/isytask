@@ -5,6 +5,7 @@ import { adminProcedure, adminOrPermissionProcedure, protectedProcedure, router,
 import { createUserSchema, updateUserSchema, changePasswordSchema, ALL_PERMISSIONS } from "@isytask/shared";
 import { createToken } from "../lib/tokens";
 import { sendEmailNotification } from "../lib/email";
+import { audit } from "../lib/audit";
 
 const teamProcedure = adminOrPermissionProcedure("manage_team");
 
@@ -299,6 +300,14 @@ export const usersRouter = router({
       await ctx.db.user.update({
         where: { id: ctx.session.user.id },
         data: { passwordHash: newHash },
+      });
+
+      audit(ctx.db, {
+        userId: ctx.session.user.id,
+        agencyId: ctx.session.user.agencyId,
+        action: "PASSWORD_CHANGED",
+        entityType: "User",
+        entityId: ctx.session.user.id,
       });
 
       return { success: true };

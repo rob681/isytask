@@ -94,6 +94,7 @@ const adminNav: NavEntry[] = [
       { label: "General", href: "/admin/configuracion", icon: <Settings className="h-4 w-4" />, permission: "manage_config" },
       { label: "Facturación", href: "/admin/billing", icon: <CreditCard className="h-4 w-4" />, permission: "manage_config" },
       { label: "WhatsApp", href: "/admin/whatsapp", icon: <MessageSquare className="h-4 w-4" />, permission: "manage_config" },
+      { label: "Seguridad", href: "/admin/seguridad", icon: <Shield className="h-4 w-4" /> },
     ],
   },
 ];
@@ -113,6 +114,7 @@ const adminNavFlat: NavItem[] = [
   { label: "WhatsApp", href: "/admin/whatsapp", icon: <MessageSquare className="h-5 w-5" />, permission: "manage_config" },
   { label: "Facturación", href: "/admin/billing", icon: <CreditCard className="h-5 w-5" />, permission: "manage_config" },
   { label: "Configuración", href: "/admin/configuracion", icon: <Settings className="h-5 w-5" />, permission: "manage_config" },
+  { label: "Seguridad", href: "/admin/seguridad", icon: <Shield className="h-5 w-5" /> },
 ];
 
 const colaboradorNav: NavItem[] = [

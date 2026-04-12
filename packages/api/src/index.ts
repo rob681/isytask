@@ -50,3 +50,6 @@ export type {
 
 export { isWorkingTime, addWorkingHours, workingHoursUntilDue, getWorkingConfig } from "./lib/working-hours";
 export type { BusinessHoursConfig, DayConfig, TimeBlock, WorkingConfig } from "./lib/working-hours";
+
+export { audit } from "./lib/audit";
+export type { AuditAction, AuditParams } from "./lib/audit";

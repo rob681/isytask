@@ -23,6 +23,7 @@ import { riskRouter } from "./routers/risk.router";
 import { videoCommentsRouter } from "./routers/video-comments.router";
 import { crossAppRouter } from "./routers/cross-app.router";
 import { platformConfigRouter } from "./routers/platform-config.router";
+import { mfaRouter } from "./routers/mfa.router";
 
 export const appRouter = router({
   auth: authRouter,
@@ -49,6 +50,7 @@ export const appRouter = router({
   risk: riskRouter,
   crossApp: crossAppRouter,
   platformConfig: platformConfigRouter,
+  mfa: mfaRouter,
 });
 
 export type AppRouter = typeof appRouter;

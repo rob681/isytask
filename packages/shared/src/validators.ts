@@ -1,8 +1,26 @@
 import { z } from "zod";
 
+/**
+ * Strong password policy:
+ * - Minimum 8 characters
+ * - At least one uppercase letter
+ * - At least one number
+ * - At least one special character
+ *
+ * Applied to all password creation/reset flows.
+ * Login keeps min(6) to not break existing user sessions.
+ */
+const strongPassword = z
+  .string()
+  .min(8, "Mínimo 8 caracteres")
+  .regex(/[A-Z]/, "Debe contener al menos una letra mayúscula")
+  .regex(/[0-9]/, "Debe contener al menos un número")
+  .regex(/[^A-Za-z0-9]/, "Debe contener al menos un carácter especial (!@#$%...)");
+
 export const loginSchema = z.object({
   email: z.string().email("Email inválido"),
-  password: z.string().min(6, "Mínimo 6 caracteres"),
+  // Login keeps permissive check — validation happens on bcrypt compare
+  password: z.string().min(1, "Contraseña requerida"),
 });
 
 export const createUserSchema = z.object({
@@ -15,8 +33,8 @@ export const createUserSchema = z.object({
 // Auth flow schemas
 export const setupPasswordSchema = z.object({
   token: z.string().min(1, "Token requerido"),
-  password: z.string().min(6, "Mínimo 6 caracteres"),
-  confirmPassword: z.string().min(6, "Mínimo 6 caracteres"),
+  password: strongPassword,
+  confirmPassword: z.string().min(1),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Las contraseñas no coinciden",
   path: ["confirmPassword"],
@@ -28,8 +46,8 @@ export const requestResetSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1, "Token requerido"),
-  password: z.string().min(6, "Mínimo 6 caracteres"),
-  confirmPassword: z.string().min(6, "Mínimo 6 caracteres"),
+  password: strongPassword,
+  confirmPassword: z.string().min(1),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Las contraseñas no coinciden",
   path: ["confirmPassword"],
@@ -42,8 +60,8 @@ export const validateTokenSchema = z.object({
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Contraseña actual requerida"),
-  newPassword: z.string().min(6, "Mínimo 6 caracteres"),
-  confirmNewPassword: z.string().min(6, "Mínimo 6 caracteres"),
+  newPassword: strongPassword,
+  confirmNewPassword: z.string().min(1),
 }).refine((data) => data.newPassword === data.confirmNewPassword, {
   message: "Las contraseñas no coinciden",
   path: ["confirmNewPassword"],
@@ -118,6 +136,9 @@ export const createTaskSchema = z.object({
   category: z.enum(["URGENTE", "NORMAL", "LARGO_PLAZO"]),
   formData: z.record(z.unknown()).optional(),
   skippedFields: z.array(z.string()).optional(),
+  // Optional context — surfaced via "Agregar contexto" toggle in the UI.
+  // Captures *why* the task is being created. Feeds future agent memory.
+  purpose: z.string().max(1000).optional(),
 });
 
 export const adminCreateTaskSchema = createTaskSchema.extend({
@@ -139,6 +160,10 @@ export const updateTaskStatusSchema = z.object({
   ]),
   note: z.string().optional(),
   extraHours: z.number().int().min(0).optional(),
+  // Outcome — only meaningful when transitioning to FINALIZADA.
+  // Set via OutcomeModal. All optional, captured for future agent memory.
+  outcomeNote: z.string().max(1000).optional(),
+  outcomeRating: z.number().int().min(1).max(5).optional(),
 });
 
 export const createServiceSchemaFull = createServiceSchema.extend({
@@ -169,12 +194,12 @@ export const registerAgencySchema = z.object({
   agencyName: z.string().min(2, "Nombre de agencia requerido (min. 2 caracteres)"),
   adminName: z.string().min(2, "Tu nombre es requerido"),
   email: z.string().email("Email invalido"),
-  password: z.string().min(8, "Minimo 8 caracteres"),
-  confirmPassword: z.string(),
+  password: strongPassword,
+  confirmPassword: z.string().min(1),
   honeypot: z.string().max(0).optional(),
   recaptchaToken: z.string().min(1, "reCAPTCHA requerido"),
 }).refine((d) => d.password === d.confirmPassword, {
-  message: "Las contrasenas no coinciden",
+  message: "Las contraseñas no coinciden",
   path: ["confirmPassword"],
 });
 
