@@ -17,6 +17,8 @@ import {
   Clock,
   Calendar,
   UserPlus,
+  Users,
+  X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
@@ -39,6 +41,160 @@ const DAY_OF_WEEK_LABELS = [
   "Sábado",
 ];
 
+// ── Inline assignment manager per recurring task ──────────────────────────────
+function AssignmentsPanel({
+  recurringTaskId,
+  assignments,
+  teamMembers,
+}: {
+  recurringTaskId: string;
+  assignments: Array<{ id: string; colaboradorId: string; role: string; colaborador: { user: { name: string } } }>;
+  teamMembers: Array<{ colaboradorProfile?: { id: string } | null; name: string }>;
+}) {
+  const utils = trpc.useUtils();
+  const [showAdd, setShowAdd] = useState(false);
+  const [newColaboradorId, setNewColaboradorId] = useState("");
+  const [newRole, setNewRole] = useState<"PRIMARY" | "HELPER">("HELPER");
+
+  const addMutation = trpc.recurring.addAssignment.useMutation({
+    onSuccess: () => {
+      utils.recurring.list.invalidate();
+      setShowAdd(false);
+      setNewColaboradorId("");
+      setNewRole("HELPER");
+    },
+  });
+
+  const removeMutation = trpc.recurring.removeAssignment.useMutation({
+    onSuccess: () => utils.recurring.list.invalidate(),
+  });
+
+  // Exclude already-assigned colaboradores from the add select
+  const assignedIds = new Set(assignments.map((a) => a.colaboradorId));
+  const available = teamMembers.filter(
+    (u) => u.colaboradorProfile && !assignedIds.has(u.colaboradorProfile.id)
+  );
+
+  const hasPrimary = assignments.some((a) => a.role === "PRIMARY");
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/50">
+      <div className="flex items-center gap-2 mb-2">
+        <Users className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">
+          Colaboradores asignados
+        </span>
+        {assignments.length > 0 && (
+          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+            {assignments.length}
+          </Badge>
+        )}
+      </div>
+
+      {/* Current assignments */}
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {assignments.length === 0 ? (
+          <span className="text-xs text-muted-foreground italic">
+            Sin colaboradores específicos — se asigna automáticamente
+          </span>
+        ) : (
+          assignments.map((a) => (
+            <div
+              key={a.id}
+              className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  a.role === "PRIMARY" ? "bg-blue-500" : "bg-gray-400"
+                }`}
+              />
+              <span>{a.colaborador.user.name}</span>
+              <span className="text-muted-foreground">
+                {a.role === "PRIMARY" ? "Principal" : "Ayudante"}
+              </span>
+              <button
+                onClick={() =>
+                  removeMutation.mutate({
+                    recurringTaskId,
+                    colaboradorId: a.colaboradorId,
+                  })
+                }
+                disabled={removeMutation.isLoading}
+                className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                title="Eliminar"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Add assignment inline form */}
+      {showAdd ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+            value={newColaboradorId}
+            onChange={(e) => setNewColaboradorId(e.target.value)}
+          >
+            <option value="">Seleccionar colaborador...</option>
+            {available.map((u) => (
+              <option key={u.colaboradorProfile!.id} value={u.colaboradorProfile!.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+            value={newRole}
+            onChange={(e) => setNewRole(e.target.value as "PRIMARY" | "HELPER")}
+          >
+            <option value="HELPER">Ayudante</option>
+            {!hasPrimary && <option value="PRIMARY">Principal</option>}
+          </select>
+          <Button
+            size="sm"
+            className="h-8 text-xs"
+            disabled={!newColaboradorId || addMutation.isLoading}
+            onClick={() =>
+              addMutation.mutate({
+                recurringTaskId,
+                colaboradorId: newColaboradorId,
+                role: newRole,
+              })
+            }
+          >
+            {addMutation.isLoading ? "..." : "Agregar"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs"
+            onClick={() => {
+              setShowAdd(false);
+              setNewColaboradorId("");
+            }}
+          >
+            Cancelar
+          </Button>
+        </div>
+      ) : (
+        available.length > 0 && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Agregar colaborador
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function TareasRecurrentesPage() {
   const { data: session } = useSession();
   const [showForm, setShowForm] = useState(false);
@@ -114,6 +270,8 @@ export default function TareasRecurrentesPage() {
     updateMutation.mutate({ id, isActive: !currentActive });
   };
 
+  const team = teamMembers?.users ?? [];
+
   return (
     <>
       <Topbar title="Tareas Recurrentes" />
@@ -186,7 +344,7 @@ export default function TareasRecurrentesPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium flex items-center gap-1">
                     <UserPlus className="h-4 w-4" />
-                    Asignar encargado (opcional)
+                    Asignar encargado principal (opcional)
                   </label>
                   <select
                     className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
@@ -201,7 +359,7 @@ export default function TareasRecurrentesPage() {
                         ★ Asignarme a mí ({session?.user?.name ?? "Yo"})
                       </option>
                     )}
-                    {teamMembers?.users
+                    {team
                       .filter((u) => u.colaboradorProfile)
                       .map((u) => (
                         <option key={u.colaboradorProfile!.id} value={u.colaboradorProfile!.id}>
@@ -210,7 +368,7 @@ export default function TareasRecurrentesPage() {
                       ))}
                   </select>
                   <p className="text-[11px] text-muted-foreground">
-                    Si no seleccionas, se asignará automáticamente al colaborador con menos carga.
+                    Puedes agregar ayudantes adicionales después de crear la tarea recurrente.
                   </p>
                 </div>
 
@@ -374,112 +532,128 @@ export default function TareasRecurrentesPage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {recurringTasks.map((rt) => (
-              <Card key={rt.id} className={!rt.isActive ? "opacity-60" : ""}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{rt.title}</h3>
-                        <Badge
-                          className={
-                            TASK_CATEGORY_BADGE_COLORS[
-                              rt.category as keyof typeof TASK_CATEGORY_BADGE_COLORS
-                            ]
-                          }
-                        >
-                          {TASK_CATEGORY_LABELS[rt.category as keyof typeof TASK_CATEGORY_LABELS]}
-                        </Badge>
-                        <Badge variant={rt.isActive ? "default" : "secondary"}>
-                          {rt.isActive ? "Activa" : "Pausada"}
-                        </Badge>
-                      </div>
-                      {rt.description && (
-                        <p className="text-sm text-muted-foreground">
-                          {rt.description}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {RECURRENCE_LABELS[rt.recurrenceType]}
-                          {rt.recurrenceType === "WEEKLY" &&
-                            rt.recurrenceDay != null &&
-                            ` — ${DAY_OF_WEEK_LABELS[rt.recurrenceDay]}`}
-                          {rt.recurrenceType === "MONTHLY" &&
-                            rt.recurrenceDay != null &&
-                            ` — Día ${rt.recurrenceDay}`}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {rt.recurrenceTime}
-                        </span>
-                        <span>
-                          Cliente: {rt.client.user.name}
-                        </span>
-                        <span>
-                          Servicio: {rt.service.name}
-                        </span>
-                        {(rt as any).colaborador && (
+            {recurringTasks.map((rt) => {
+              const rtAssignments = (rt as any).assignments ?? [];
+              return (
+                <Card key={rt.id} className={!rt.isActive ? "opacity-60" : ""}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold">{rt.title}</h3>
+                          <Badge
+                            className={
+                              TASK_CATEGORY_BADGE_COLORS[
+                                rt.category as keyof typeof TASK_CATEGORY_BADGE_COLORS
+                              ]
+                            }
+                          >
+                            {TASK_CATEGORY_LABELS[rt.category as keyof typeof TASK_CATEGORY_LABELS]}
+                          </Badge>
+                          <Badge variant={rt.isActive ? "default" : "secondary"}>
+                            {rt.isActive ? "Activa" : "Pausada"}
+                          </Badge>
+                          {rtAssignments.length > 0 && (
+                            <Badge variant="outline" className="gap-1 text-xs">
+                              <Users className="h-3 w-3" />
+                              {rtAssignments.length}
+                            </Badge>
+                          )}
+                        </div>
+                        {rt.description && (
+                          <p className="text-sm text-muted-foreground">
+                            {rt.description}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2 flex-wrap">
                           <span className="flex items-center gap-1">
-                            <UserPlus className="h-3 w-3" />
-                            {(rt as any).colaborador.user.name}
+                            <Calendar className="h-3 w-3" />
+                            {RECURRENCE_LABELS[rt.recurrenceType]}
+                            {rt.recurrenceType === "WEEKLY" &&
+                              rt.recurrenceDay != null &&
+                              ` — ${DAY_OF_WEEK_LABELS[rt.recurrenceDay]}`}
+                            {rt.recurrenceType === "MONTHLY" &&
+                              rt.recurrenceDay != null &&
+                              ` — Día ${rt.recurrenceDay}`}
                           </span>
-                        )}
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {rt.recurrenceTime}
+                          </span>
+                          <span>
+                            Cliente: {rt.client.user.name}
+                          </span>
+                          <span>
+                            Servicio: {rt.service.name}
+                          </span>
+                          {(rt as any).colaborador && rtAssignments.length === 0 && (
+                            <span className="flex items-center gap-1">
+                              <UserPlus className="h-3 w-3" />
+                              {(rt as any).colaborador.user.name}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                          {rt.lastRunAt && (
+                            <span>
+                              Última ejecución:{" "}
+                              {formatDistanceToNow(new Date(rt.lastRunAt), {
+                                addSuffix: true,
+                                locale: es,
+                              })}
+                            </span>
+                          )}
+                          {rt.nextRunAt && (
+                            <span>
+                              Próxima:{" "}
+                              {new Date(rt.nextRunAt).toLocaleDateString("es-MX", {
+                                weekday: "short",
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Assignments panel */}
+                        <AssignmentsPanel
+                          recurringTaskId={rt.id}
+                          assignments={rtAssignments}
+                          teamMembers={team}
+                        />
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                        {rt.lastRunAt && (
-                          <span>
-                            Última ejecución:{" "}
-                            {formatDistanceToNow(new Date(rt.lastRunAt), {
-                              addSuffix: true,
-                              locale: es,
-                            })}
-                          </span>
-                        )}
-                        {rt.nextRunAt && (
-                          <span>
-                            Próxima:{" "}
-                            {new Date(rt.nextRunAt).toLocaleDateString("es-MX", {
-                              weekday: "short",
-                              day: "numeric",
-                              month: "short",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        )}
+                      <div className="flex items-center gap-1 ml-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleActive(rt.id, rt.isActive)}
+                          title={rt.isActive ? "Pausar" : "Activar"}
+                        >
+                          {rt.isActive ? (
+                            <Pause className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            if (confirm("¿Eliminar esta tarea recurrente?")) {
+                              deleteMutation.mutate({ id: rt.id });
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => toggleActive(rt.id, rt.isActive)}
-                        title={rt.isActive ? "Pausar" : "Activar"}
-                      >
-                        {rt.isActive ? (
-                          <Pause className="h-4 w-4" />
-                        ) : (
-                          <Play className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          if (confirm("¿Eliminar esta tarea recurrente?")) {
-                            deleteMutation.mutate({ id: rt.id });
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
