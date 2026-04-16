@@ -27,6 +27,9 @@ export default function AdminNuevaTareaPage() {
   const [userOverrodeCategory, setUserOverrodeCategory] = useState(false);
   const [showPurpose, setShowPurpose] = useState(false);
   const [purpose, setPurpose] = useState("");
+  const [aiSuggestion, setAiSuggestion] = useState("");
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [descSuggestInput, setDescSuggestInput] = useState<{ serviceName: string; title?: string; fieldValues?: Record<string, string> } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch data
@@ -96,6 +99,40 @@ export default function AdminNuevaTareaPage() {
     { serviceId: selectedServiceId, clientId: selectedClientId || undefined, category },
     { enabled: !!selectedServiceId }
   );
+
+  // AI description suggestion
+  const { data: descSuggestData, isFetching: descFetching } = trpc.tasks.suggestDescription.useQuery(
+    descSuggestInput ?? { serviceName: "" },
+    { enabled: !!descSuggestInput }
+  );
+
+  useEffect(() => {
+    if (descSuggestData?.suggestion) {
+      setAiSuggestion(descSuggestData.suggestion);
+      setLoadingAI(false);
+    }
+  }, [descSuggestData]);
+
+  useEffect(() => {
+    if (descFetching) setLoadingAI(true);
+    else setLoadingAI(false);
+  }, [descFetching]);
+
+  const triggerDescSuggest = () => {
+    if (!selectedService) return;
+    const stringFieldValues: Record<string, string> = {};
+    for (const [k, v] of Object.entries(formData)) {
+      if (v !== null && v !== undefined && String(v).trim()) {
+        stringFieldValues[k] = String(v);
+      }
+    }
+    setAiSuggestion("");
+    setDescSuggestInput({
+      serviceName: selectedService.name,
+      title: title || undefined,
+      fieldValues: Object.keys(stringFieldValues).length > 0 ? stringFieldValues : undefined,
+    });
+  };
 
   const createMutation = trpc.tasks.createForClient.useMutation({
     onSuccess: () => {
@@ -349,13 +386,58 @@ export default function AdminNuevaTareaPage() {
 
               {/* Description */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Descripción</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Descripción</label>
+                  {selectedServiceId && (
+                    <button
+                      type="button"
+                      onClick={triggerDescSuggest}
+                      disabled={!selectedServiceId || loadingAI}
+                      className="inline-flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      {loadingAI ? "Generando..." : "Sugerir con IA"}
+                    </button>
+                  )}
+                </div>
                 <textarea
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe los detalles de la tarea..."
                 />
+                {aiSuggestion && (
+                  <div className="bg-muted rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-medium text-violet-700 flex items-center gap-1">
+                      <Sparkles className="h-3 w-3" />
+                      Sugerencia de IA
+                    </p>
+                    <p className="text-sm text-foreground leading-relaxed">{aiSuggestion}</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDescription(aiSuggestion);
+                          setAiSuggestion("");
+                          setDescSuggestInput(null);
+                        }}
+                        className="text-xs bg-violet-600 text-white px-3 py-1 rounded-md hover:bg-violet-700 transition-colors"
+                      >
+                        Usar esta descripción
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAiSuggestion("");
+                          setDescSuggestInput(null);
+                        }}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Descartar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Optional purpose / context — toggle to keep flow lean */}

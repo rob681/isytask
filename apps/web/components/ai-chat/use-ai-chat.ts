@@ -18,9 +18,12 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Use refs to avoid stale closures in the async sendMessage callback
+  // Refs to avoid stale closures in the async sendMessage callback
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
+
+  const isStreamingRef = useRef(false); // Use ref for guard — avoids stale closure in useCallback
+  isStreamingRef.current = isStreaming;
 
   const formDataRef = useRef<Record<string, any>>({});
   formDataRef.current = formData;
@@ -28,9 +31,15 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
   const onFieldsUpdateRef = useRef(onFieldsUpdate);
   onFieldsUpdateRef.current = onFieldsUpdate;
 
+  // Prevent double-send (e.g. Enter + button click simultaneously)
+  const sendingRef = useRef(false);
+
   const sendMessage = useCallback(
     async (userMessage: string) => {
-      if (!userMessage.trim() || isStreaming) return;
+      // Guard against stale isStreaming via ref, and against double-submit
+      if (!userMessage.trim() || isStreamingRef.current || sendingRef.current) return;
+
+      sendingRef.current = true;
 
       const newUserMsg: ChatMessage = { role: "user", content: userMessage.trim() };
 
@@ -38,7 +47,7 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
       const currentMessages = messagesRef.current;
       const updatedMessages = [...currentMessages, newUserMsg];
 
-      // Add user message + empty assistant placeholder
+      // Add user message + empty assistant placeholder atomically
       const assistantMsg: ChatMessage = { role: "assistant", content: "" };
       setMessages([...updatedMessages, assistantMsg]);
       setIsStreaming(true);
@@ -68,15 +77,11 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
             };
             return copy;
           });
-          setIsStreaming(false);
           return;
         }
 
         const reader = response.body?.getReader();
-        if (!reader) {
-          setIsStreaming(false);
-          return;
-        }
+        if (!reader) return;
 
         const decoder = new TextDecoder();
         let buffer = "";
@@ -141,28 +146,10 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
           }
         }
 
-        // Deduplicate: if the response text is exactly repeated, trim to one copy
-        const trimmed = assistantContent.trim();
-        if (trimmed.length > 20) {
-          const half = Math.floor(trimmed.length / 2);
-          const firstHalf = trimmed.slice(0, half);
-          const secondHalf = trimmed.slice(half);
-          if (firstHalf === secondHalf) {
-            assistantContent = firstHalf;
-            setMessages((prev) => {
-              const copy = [...prev];
-              copy[copy.length - 1] = {
-                role: "assistant",
-                content: assistantContent,
-              };
-              return copy;
-            });
-          }
-        }
-
         // If the AI only called a tool (no text), show a confirmation message
         if (hadToolCall && !assistantContent.trim()) {
-          assistantContent = "He actualizado los campos del formulario con la información proporcionada. ¿Hay algo más que necesites ajustar?";
+          assistantContent =
+            "He actualizado los campos del formulario con la información proporcionada. ¿Hay algo más que necesites ajustar?";
           setMessages((prev) => {
             const copy = [...prev];
             copy[copy.length - 1] = {
@@ -185,11 +172,12 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
         }
       } finally {
         setIsStreaming(false);
+        sendingRef.current = false;
         abortRef.current = null;
       }
     },
-    // Only depend on serviceId and isStreaming — refs handle the rest
-    [serviceId, isStreaming]
+    // serviceId is the only real dependency — all mutable values go through refs
+    [serviceId]
   );
 
   const clearChat = useCallback(() => {
@@ -198,6 +186,7 @@ export function useAIChat({ serviceId, formData, onFieldsUpdate }: UseAIChatPara
     }
     setMessages([]);
     setIsStreaming(false);
+    sendingRef.current = false;
   }, []);
 
   return { messages, isStreaming, sendMessage, clearChat };

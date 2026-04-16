@@ -1041,16 +1041,26 @@ export const tasksRouter = router({
           .optional(),
         category: z.enum(["URGENTE", "NORMAL", "LARGO_PLAZO"]).optional(),
         clientId: z.string().optional(),
+        month: z.number().min(1).max(12).optional(),
+        year: z.number().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
       const agencyId = getAgencyId(ctx);
-      const where = {
+      const where: any = {
         agencyId,
         ...(input.status && { status: input.status }),
         ...(input.category && { category: input.category }),
         ...(input.clientId && { clientId: input.clientId }),
       };
+
+      // Add month filter if provided
+      if (input.month && input.year) {
+        where.createdAt = {
+          gte: new Date(input.year, input.month - 1, 1),
+          lt: new Date(input.year, input.month, 1),
+        };
+      }
 
       const [tasks, total] = await Promise.all([
         ctx.db.task.findMany({
@@ -1396,5 +1406,73 @@ Responde SOLO con la categoría: URGENTE, NORMAL, o LARGO_PLAZO`;
         .slice(0, 3);
 
       return { suggestions };
+    }),
+
+  bulkUpdateStatus: adminProcedure
+    .input(z.object({
+      ids: z.array(z.string()).min(1).max(100),
+      status: z.enum(["RECIBIDA", "EN_PROGRESO", "DUDA", "REVISION", "FINALIZADA", "CANCELADA"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
+      // Verify tasks belong to this agency
+      const tasks = await ctx.db.task.findMany({
+        where: { id: { in: input.ids }, agencyId },
+        select: { id: true },
+      });
+      const validIds = tasks.map((t) => t.id);
+      const result = await ctx.db.task.updateMany({
+        where: { id: { in: validIds } },
+        data: { status: input.status },
+      });
+      return { updated: result.count };
+    }),
+
+  bulkDelete: adminProcedure
+    .input(z.object({
+      ids: z.array(z.string()).min(1).max(100),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
+      const tasks = await ctx.db.task.findMany({
+        where: { id: { in: input.ids }, agencyId },
+        select: { id: true },
+      });
+      const validIds = tasks.map((t) => t.id);
+      const result = await ctx.db.task.deleteMany({
+        where: { id: { in: validIds } },
+      });
+      return { deleted: result.count };
+    }),
+
+  suggestDescription: adminProcedure
+    .input(z.object({
+      serviceName: z.string(),
+      title: z.string().optional(),
+      fieldValues: z.record(z.string()).optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { chatCompletion } = await import("../lib/openrouter");
+
+      const fieldsInfo = input.fieldValues
+        ? Object.entries(input.fieldValues)
+            .filter(([, v]) => v && String(v).trim())
+            .map(([k, v]) => `- ${k}: ${v}`)
+            .join("\n")
+        : "";
+
+      const messages = [
+        {
+          role: "system" as const,
+          content: `Eres un asistente para una agencia de servicios creativos. Genera una descripción breve y clara para una solicitud de trabajo. Solo responde con el texto de la descripción (máximo 3 oraciones). En español.`,
+        },
+        {
+          role: "user" as const,
+          content: `Servicio: ${input.serviceName}\nTítulo: ${input.title || "(sin título)"}\n${fieldsInfo ? `Detalles:\n${fieldsInfo}` : ""}`,
+        },
+      ];
+
+      const suggestion = await chatCompletion({ db: ctx.db, messages, maxTokens: 200, temperature: 0.7 });
+      return { suggestion: suggestion ?? null };
     }),
 });

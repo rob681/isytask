@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc/client";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, Check } from "lucide-react";
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3";
 
 type RegisterForm = z.infer<typeof registerAgencySchema>;
@@ -27,11 +27,13 @@ function RegistroForm() {
   const plan = searchParams.get("plan") || "";
   const [success, setSuccess] = useState(false);
   const [successEmail, setSuccessEmail] = useState("");
+  const [emailSent, setEmailSent] = useState(true);
   const { executeRecaptcha } = useGoogleReCaptcha();
 
   const registerMutation = trpc.auth.registerAgency.useMutation({
     onSuccess: (data) => {
       setSuccessEmail(data.email);
+      setEmailSent(data.emailSent ?? true);
       setSuccess(true);
     },
   });
@@ -57,22 +59,72 @@ function RegistroForm() {
 
   if (success) {
     return (
-      <Card className="w-full max-w-md relative glass-card shadow-soft text-center">
-        <CardContent className="pt-8 pb-8 space-y-4">
-          <div className="mx-auto w-16 h-16 rounded-full gradient-primary flex items-center justify-center mb-2">
-            <CheckCircle2 className="h-8 w-8 text-white" />
+      <Card className="border-green-200 bg-green-50 dark:bg-green-950/30 w-full max-w-md relative glass-card shadow-soft">
+        <CardContent className="pt-6 pb-8 space-y-4">
+          {/* Checkmark + title */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
+              <Check className="w-5 h-5 text-white" />
+            </div>
+            <h3 className="font-semibold text-green-900 dark:text-green-100 text-lg">
+              ¡Agencia creada!
+            </h3>
           </div>
-          <h1 className="font-display text-2xl font-bold">
-            Tu agencia esta lista!
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Hemos enviado un email de bienvenida a{" "}
-            <span className="font-medium text-foreground">{successEmail}</span>.
-            Ya puedes iniciar sesion.
-          </p>
-          <Link href="/login">
-            <Button className="w-full gradient-primary text-white font-semibold h-11 mt-4">
-              Iniciar sesion
+
+          {/* Instructions */}
+          <div className="space-y-3 text-sm text-green-900 dark:text-green-100">
+            {emailSent ? (
+              <>
+                <p>Hemos enviado un email de verificación a:</p>
+                <p className="font-mono text-xs bg-white dark:bg-black/30 p-2 rounded border border-green-200 dark:border-green-800">
+                  {successEmail}
+                </p>
+
+                <div className="space-y-2 pt-2">
+                  <p className="font-medium">Próximos pasos:</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-1">
+                    <li>Revisa tu bandeja de entrada</li>
+                    <li>Busca el email de verificación (revisa Spam si no lo ves)</li>
+                    <li>Haz click en el enlace para verificar tu cuenta</li>
+                    <li>Vuelve e inicia sesión</li>
+                  </ol>
+                </div>
+
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-3 mt-3">
+                  <p className="text-xs text-amber-900 dark:text-amber-100">
+                    💡 <strong>Consejo:</strong> Si no recibes el email en 5 minutos, revisa tu carpeta de Spam o contacta soporte.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p>Tu agencia fue creada exitosamente, pero hubo un problema enviando el email de verificación.</p>
+                <p className="font-mono text-xs bg-white dark:bg-black/30 p-2 rounded border border-green-200 dark:border-green-800">
+                  {successEmail}
+                </p>
+
+                <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded p-3">
+                  <p className="text-xs text-red-900 dark:text-red-100">
+                    <strong>Atención:</strong> No pudimos enviar el email de verificación. Por favor contacta a soporte en soporte@isytask.com para completar tu verificación.
+                  </p>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <p className="font-medium">Mientras tanto:</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-1">
+                    <li>Tu agencia está lista para usar</li>
+                    <li>Contacta a soporte para verificar tu email</li>
+                    <li>Una vez verificado, podrás iniciar sesión</li>
+                  </ol>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Button */}
+          <Link href="/login" className="block w-full">
+            <Button className="w-full mt-4 gradient-primary text-white font-semibold h-11">
+              Ir a iniciar sesión
             </Button>
           </Link>
         </CardContent>

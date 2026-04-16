@@ -51,6 +51,36 @@ export async function uploadFile(
 }
 
 /**
+ * Create a signed URL for a private file — expires after the given seconds.
+ * Use for task attachments and any file that shouldn't be publicly accessible.
+ *
+ * @param storagePath - Full "bucket/path" format
+ * @param expiresInSeconds - Default: 3600 (1 hour)
+ */
+export async function getSignedUrl(
+  storagePath: string,
+  expiresInSeconds: number = 3600
+): Promise<string> {
+  const supabase = getClient();
+
+  const slashIdx = storagePath.indexOf("/");
+  if (slashIdx === -1) throw new Error("Invalid storage path format");
+
+  const bucket = storagePath.substring(0, slashIdx);
+  const path = storagePath.substring(slashIdx + 1);
+
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresInSeconds);
+
+  if (error || !data?.signedUrl) {
+    throw new Error(`Failed to create signed URL: ${error?.message ?? "unknown"}`);
+  }
+
+  return data.signedUrl;
+}
+
+/**
  * Delete a file from Supabase Storage.
  *
  * @param storagePath - Full path like "attachments/task-123/file.pdf"

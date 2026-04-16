@@ -128,6 +128,19 @@ export const usersRouter = router({
     .mutation(async ({ ctx, input }) => {
       // Create user WITHOUT password — they'll set it via invitation link
       const agencyId = getAgencyId(ctx);
+
+      // Check if email is already taken before attempting create
+      const existing = await ctx.db.user.findUnique({
+        where: { email: input.email },
+        select: { id: true, agencyId: true },
+      });
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Este correo electrónico ya está registrado en la plataforma. Usa otro email para invitar a este usuario.",
+        });
+      }
+
       const user = await ctx.db.user.create({
         data: {
           email: input.email,

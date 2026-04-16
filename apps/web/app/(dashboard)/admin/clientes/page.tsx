@@ -41,6 +41,12 @@ export default function ClientesPage() {
       setShowForm(false);
       reset();
     },
+    onError: (error) => {
+      // Show field-level error for duplicate email
+      if (error.data?.code === "CONFLICT") {
+        setError("email", { type: "manual", message: error.message });
+      }
+    },
   });
 
   const resendMutation = trpc.users.resendInvitation.useMutation({
@@ -94,6 +100,7 @@ export default function ClientesPage() {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<CreateForm>({
     resolver: zodResolver(createUserSchema),

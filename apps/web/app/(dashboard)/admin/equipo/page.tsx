@@ -39,6 +39,11 @@ export default function EquipoPage() {
       setShowForm(false);
       reset();
     },
+    onError: (error) => {
+      if (error.data?.code === "CONFLICT") {
+        setError("email", { type: "manual", message: error.message });
+      }
+    },
   });
 
   const permissionsMutation = trpc.users.updatePermissions.useMutation({
@@ -64,6 +69,7 @@ export default function EquipoPage() {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<CreateForm>({
     resolver: zodResolver(createUserSchema),

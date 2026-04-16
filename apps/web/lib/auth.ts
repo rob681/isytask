@@ -9,7 +9,8 @@ const LOCKOUT_MINUTES = 15;     // how long the account stays locked
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 8 * 60 * 60,      // 8 hours — security best practice
+    updateAge: 60 * 60,        // Refresh JWT every hour on activity (sliding window)
   },
   pages: {
     signIn: "/login",
@@ -37,6 +38,11 @@ export const authOptions: NextAuthOptions = {
 
         if (!user || !user.isActive) {
           throw new Error("Credenciales inválidas");
+        }
+
+        // Check email verification (required for self-service registrations)
+        if (user.emailVerified === false) {
+          throw new Error("Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada o solicita un nuevo enlace en /login.");
         }
 
         // Check account lockout

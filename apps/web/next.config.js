@@ -1,4 +1,5 @@
 const path = require("path");
+const { withSentryConfig } = require("@sentry/nextjs");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -27,8 +28,8 @@ const nextConfig = {
       "font-src 'self' https://fonts.gstatic.com",
       // Allow Supabase images and data: for base64 avatars
       "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com",
-      // API connections: own server, Supabase, Stripe
-      "connect-src 'self' https://*.supabase.co https://api.stripe.com https://www.google.com https://vitals.vercel-insights.com",
+      // API connections: own server, Supabase, Stripe, Sentry
+      "connect-src 'self' https://*.supabase.co https://api.stripe.com https://www.google.com https://vitals.vercel-insights.com https://*.sentry.io https://o*.ingest.sentry.io",
       // Stripe payment iframe
       "frame-src https://js.stripe.com https://hooks.stripe.com https://www.google.com",
       // Block plugins and object embeds entirely
@@ -67,4 +68,10 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withSentryConfig(nextConfig, {
+  // Sentry org + project (set via SENTRY_ORG + SENTRY_PROJECT env vars)
+  silent: true,          // Suppress CLI output during builds
+  hideSourceMaps: true,  // Don't expose source maps to clients
+  disableLogger: true,   // Tree-shake Sentry logger in production
+  automaticVercelMonitors: true, // Auto-instrument Vercel cron jobs
+});

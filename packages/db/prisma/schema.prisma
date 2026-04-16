@@ -49,6 +49,7 @@ enum TokenType {
   INVITATION
   PASSWORD_RESET
   MFA_SETUP
+  EMAIL_VERIFICATION
 }
 
 enum NotificationChannel {
@@ -198,6 +199,10 @@ model User {
   avatarUrl    String?
   role         Role
   isActive     Boolean @default(true)
+
+  // Email verification — required for self-service registrations
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
 
   // Account lockout — incremented on every failed login, reset on success
   loginAttempts Int       @default(0)
@@ -926,4 +931,20 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ──────────────────────────────────────────────
+// RATE LIMIT RECORDS (DB-backed, survives restarts)
+// ──────────────────────────────────────────────
+
+model RateLimitRecord {
+  id        String   @id @default(cuid())
+  key       String   @unique  // e.g. "reset:user@email.com", "register:user@email.com"
+  count     Int      @default(1)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@map("rate_limit_records")
 }

@@ -7,13 +7,19 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { trpc } from "@/lib/trpc/client";
+import { useRef } from "react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showResendSection, setShowResendSection] = useState(false);
+  const [resendEmail, setResendEmail] = useState("");
   const router = useRouter();
+  const resendMutation = trpc.auth.resendVerification.useMutation();
+  const resendEmailInputRef = useRef<HTMLInputElement>(null);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -37,6 +43,16 @@ export default function LoginPage() {
       setError("Error al iniciar sesión");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    const emailValue = resendEmail.trim();
+    if (emailValue) {
+      resendMutation.mutate({ email: emailValue });
+      // Clear the input after submission
+      setResendEmail("");
     }
   };
 
@@ -115,6 +131,66 @@ export default function LoginPage() {
               {loading ? "Iniciando sesión..." : "Iniciar sesión"}
             </Button>
           </form>
+
+          {/* Resend verification email section */}
+          <div className="mt-6 pt-6 border-t">
+            {!showResendSection ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full text-xs h-9"
+                onClick={() => setShowResendSection(true)}
+              >
+                ¿No recibiste el email de verificación?
+              </Button>
+            ) : (
+              <form onSubmit={handleResendEmail} className="space-y-3">
+                <p className="text-xs text-muted-foreground text-center">
+                  Ingresa tu email para reenviar el enlace de verificación
+                </p>
+                <Input
+                  ref={resendEmailInputRef}
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={resendEmail}
+                  onChange={(e) => setResendEmail(e.target.value)}
+                  className="h-10 rounded-lg text-sm"
+                  required
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    variant="default"
+                    className="flex-1 h-10"
+                    disabled={resendMutation.isPending || !resendEmail.trim()}
+                  >
+                    {resendMutation.isPending ? "Enviando..." : "Reenviar"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="flex-1 h-10"
+                    onClick={() => {
+                      setShowResendSection(false);
+                      setResendEmail("");
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+                {resendMutation.isSuccess && (
+                  <p className="text-xs text-green-600 text-center font-medium">
+                    ✓ Email enviado. Revisa tu bandeja de entrada.
+                  </p>
+                )}
+                {resendMutation.error && (
+                  <p className="text-xs text-red-600 text-center">
+                    ✗ {resendMutation.error.message}
+                  </p>
+                )}
+              </form>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

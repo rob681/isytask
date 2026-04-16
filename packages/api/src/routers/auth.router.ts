@@ -14,46 +14,16 @@ import {
 import { validateToken, createToken } from "../lib/tokens";
 import { sendEmailNotification } from "../lib/email";
 import { audit } from "../lib/audit";
+import { checkRateLimit, cleanupExpiredRateLimits } from "../lib/rate-limit";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 if (!JWT_SECRET) throw new Error("NEXTAUTH_SECRET is required");
 const JWT_EXPIRES_IN = "30d";
 
-// Rate limiting for password reset requests
-const resetRequestCounts = new Map<
-  string,
-  { count: number; resetAt: number }
->();
 const MAX_RESET_REQUESTS = 3;
-const RESET_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-
-// Rate limiting for registration
-const registerRequestCounts = new Map<
-  string,
-  { count: number; resetAt: number }
->();
+const RESET_WINDOW_MS = 15 * 60 * 1000;    // 15 minutes
 const MAX_REGISTER_REQUESTS = 5;
 const REGISTER_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-
-function checkResetRateLimit(email: string): boolean {
-  const now = Date.now();
-  const entry = resetRequestCounts.get(email);
-
-  if (!entry || now > entry.resetAt) {
-    resetRequestCounts.set(email, {
-      count: 1,
-      resetAt: now + RESET_WINDOW_MS,
-    });
-    return true;
-  }
-
-  if (entry.count >= MAX_RESET_REQUESTS) {
-    return false;
-  }
-
-  entry.count++;
-  return true;
-}
 
 export const authRouter = router({
   /** Mobile login — validates credentials and returns a signed JWT */
@@ -187,10 +157,17 @@ export const authRouter = router({
   requestReset: publicProcedure
     .input(requestResetSchema)
     .mutation(async ({ ctx, input }) => {
-      // Rate limit check
-      if (!checkResetRateLimit(input.email)) {
-        return { success: true };
-      }
+      // DB-backed rate limit (survives server restarts)
+      const allowed = await checkRateLimit(
+        ctx.db,
+        `reset:${input.email.toLowerCase()}`,
+        MAX_RESET_REQUESTS,
+        RESET_WINDOW_MS
+      );
+      if (!allowed) return { success: true }; // Silently succeed to prevent timing attacks
+
+      // Opportunistic cleanup of expired records (~5%)
+      if (Math.random() < 0.05) cleanupExpiredRateLimits(ctx.db);
 
       const user = await ctx.db.user.findUnique({
         where: { email: input.email },
@@ -299,19 +276,18 @@ export const authRouter = router({
         });
       }
 
-      // Rate limit
-      const now = Date.now();
-      const entry = registerRequestCounts.get(input.email);
-      if (entry && now < entry.resetAt && entry.count >= MAX_REGISTER_REQUESTS) {
+      // DB-backed rate limit
+      const registerAllowed = await checkRateLimit(
+        ctx.db,
+        `register:${input.email.toLowerCase()}`,
+        MAX_REGISTER_REQUESTS,
+        REGISTER_WINDOW_MS
+      );
+      if (!registerAllowed) {
         throw new TRPCError({
           code: "TOO_MANY_REQUESTS",
           message: "Demasiados intentos. Intenta de nuevo más tarde.",
         });
-      }
-      if (!entry || now > (entry?.resetAt ?? 0)) {
-        registerRequestCounts.set(input.email, { count: 1, resetAt: now + REGISTER_WINDOW_MS });
-      } else {
-        entry.count++;
       }
 
       // Check email uniqueness
@@ -366,24 +342,115 @@ export const authRouter = router({
             passwordHash,
             role: "ADMIN",
             agencyId: agency.id,
+            emailVerified: false, // Must verify email before first login
           },
         });
 
         return { agency, user };
       });
 
-      // Send welcome email (non-blocking)
+      // Create email verification token + send verification email
       const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+      const verifyToken = await createToken(ctx.db, result.user.id, "EMAIL_VERIFICATION");
+      const verifyUrl = `${baseUrl}/verificar-email?token=${verifyToken}`;
+
+      let emailSent = true;
+      try {
+        await sendEmailNotification({
+          db: ctx.db,
+          to: input.email,
+          subject: "Verifica tu correo — Isytask",
+          title: "Confirma tu correo electrónico",
+          body: `Hola ${input.adminName},<br><br>Tu agencia <strong>${input.agencyName}</strong> fue creada. Solo falta verificar tu correo para activar tu cuenta y comenzar tu prueba gratuita de 14 días.<br><br>Este enlace expira en 24 horas.`,
+          actionUrl: verifyUrl,
+          actionLabel: "Verificar correo",
+        });
+      } catch (error) {
+        console.error("Email send failed during signup:", error);
+        // User registration succeeds even if email fails, but we track the failure
+        emailSent = false;
+      }
+
+      audit(ctx.db, {
+        userId: result.user.id,
+        agencyId: result.agency.id,
+        action: "USER_CREATED",
+        entityType: "User",
+        entityId: result.user.id,
+        newValue: { email: input.email, agencyName: input.agencyName },
+      });
+
+      return { success: true, email: input.email, slug: result.agency.slug, emailSent };
+    }),
+
+  /** Verify email address from link in verification email */
+  verifyEmail: publicProcedure
+    .input(z.object({ token: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const token = await validateToken(ctx.db, input.token, "EMAIL_VERIFICATION");
+      if (!token) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "El enlace de verificación es inválido o ha expirado. Solicita uno nuevo desde el login.",
+        });
+      }
+
+      await ctx.db.$transaction([
+        ctx.db.user.update({
+          where: { id: token.user.id },
+          data: { emailVerified: true, emailVerifiedAt: new Date() },
+        }),
+        ctx.db.token.update({
+          where: { id: token.id },
+          data: { usedAt: new Date() },
+        }),
+      ]);
+
+      audit(ctx.db, {
+        userId: token.user.id,
+        action: "USER_CREATED",
+        entityType: "User",
+        entityId: token.user.id,
+        newValue: { emailVerified: true },
+      });
+
+      return { success: true, email: token.user.email };
+    }),
+
+  /** Resend verification email — for users stuck on unverified state */
+  resendVerification: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ ctx, input }) => {
+      // Always return success to prevent email enumeration
+      const allowed = await checkRateLimit(
+        ctx.db,
+        `verify-resend:${input.email.toLowerCase()}`,
+        3,
+        60 * 60 * 1000 // 3 per hour
+      );
+      if (!allowed) return { success: true };
+
+      const user = await ctx.db.user.findUnique({
+        where: { email: input.email },
+        select: { id: true, name: true, emailVerified: true },
+      });
+
+      if (!user || user.emailVerified) return { success: true };
+
+      const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+      const verifyToken = await createToken(ctx.db, user.id, "EMAIL_VERIFICATION");
+      const verifyUrl = `${baseUrl}/verificar-email?token=${verifyToken}`;
+
       sendEmailNotification({
         db: ctx.db,
         to: input.email,
-        subject: "Bienvenido a Isytask — Tu agencia está lista",
-        title: "¡Bienvenido a Isytask!",
-        body: `Hola ${input.adminName},<br><br>Tu agencia <strong>${input.agencyName}</strong> ha sido creada exitosamente. Tu prueba gratuita de 14 días comienza hoy.<br><br>Inicia sesión para empezar a organizar tu equipo y tus clientes.`,
-        actionUrl: `${baseUrl}/login`,
-        actionLabel: "Iniciar sesión",
+        subject: "Verifica tu correo — Isytask",
+        title: "Confirma tu correo electrónico",
+        body: `Hola ${user.name},<br><br>Solicitaste reenviar el enlace de verificación. Haz clic en el botón para activar tu cuenta.<br><br>Este enlace expira en 24 horas.`,
+        actionUrl: verifyUrl,
+        actionLabel: "Verificar correo",
       }).catch(console.error);
 
-      return { success: true, email: input.email, slug: result.agency.slug };
+      return { success: true };
     }),
 });
