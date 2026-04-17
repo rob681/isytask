@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm --filter @isytask/web build",
-  "installCommand": "pnpm install",
+  "buildCommand": "cd ../.. && pnpm --filter @isytask/db db:generate && pnpm --filter @isytask/web build",
+  "installCommand": "cd ../.. && pnpm install --ignore-scripts",
   "framework": "nextjs",
-  "outputDirectory": "apps/web/.next",
+  "outputDirectory": ".next",
   "crons": [
     {
       "path": "/api/cron/recurring-tasks",
