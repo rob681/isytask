@@ -356,7 +356,7 @@ export const authRouter = router({
 
       let emailSent = true;
       try {
-        await sendEmailNotification({
+        emailSent = await sendEmailNotification({
           db: ctx.db,
           to: input.email,
           subject: "Verifica tu correo — Isytask",

@@ -36,6 +36,10 @@ function RegistroForm() {
       setEmailSent(data.emailSent ?? true);
       setSuccess(true);
     },
+    onError: (error) => {
+      console.error("Registration failed:", error);
+      setError("root", { message: error.message || "Error al crear la agencia. Intenta de nuevo." });
+    },
   });
 
   const {
@@ -53,8 +57,18 @@ function RegistroForm() {
       setError("root", { message: "reCAPTCHA no disponible. Recarga la página." });
       return;
     }
-    const recaptchaToken = await executeRecaptcha("register");
-    registerMutation.mutate({ ...data, recaptchaToken });
+
+    try {
+      const recaptchaToken = await executeRecaptcha("register");
+      if (!recaptchaToken) {
+        setError("root", { message: "reCAPTCHA falló. Recarga la página e intenta de nuevo." });
+        return;
+      }
+      registerMutation.mutate({ ...data, recaptchaToken });
+    } catch (error) {
+      console.error("reCAPTCHA error:", error);
+      setError("root", { message: "Error de seguridad (reCAPTCHA). Recarga la página e intenta de nuevo." });
+    }
   }, [executeRecaptcha, registerMutation, setError]);
 
   if (success) {
