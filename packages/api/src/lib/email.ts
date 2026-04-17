@@ -101,18 +101,29 @@ export async function sendEmailNotification({
   actionLabel,
 }: SendEmailParams): Promise<boolean> {
   try {
+    console.log("[Email] Starting email send to:", to);
+
     // Check if email notifications are enabled
     const emailEnabled = await getConfig(db, "notification_email_enabled", true);
-    if (!emailEnabled) return false;
+    console.log("[Email] Email enabled:", emailEnabled);
+    if (!emailEnabled) {
+      console.log("[Email] Email notifications disabled, returning false");
+      return false;
+    }
 
     // Get Resend API key from PLATFORM config (Super Admin manages this)
     const apiKey = await getPlatformConfig(db, "resend_api_key", "");
-    if (!apiKey) return false;
+    console.log("[Email] API key found:", !!apiKey, "length:", apiKey?.length || 0);
+    if (!apiKey) {
+      console.log("[Email] No API key configured, returning false");
+      return false;
+    }
 
     // Get email settings from PLATFORM config
     const fromAddress = await getPlatformConfig(db, "email_from_address", "noreply@isytask.com");
     const fromName = await getPlatformConfig(db, "email_from_name", "Isytask");
     const companyName = await getPlatformConfig(db, "company_name", "Isytask");
+    console.log("[Email] Config loaded - from:", fromAddress, "name:", fromName);
 
     // Build HTML email
     const html = buildEmailHtml({
@@ -122,11 +133,17 @@ export async function sendEmailNotification({
       actionUrl,
       actionLabel,
     });
+    console.log("[Email] HTML email built successfully");
 
     // Dynamic import of Resend to avoid issues in environments where it's not needed
+    console.log("[Email] Importing Resend...");
     const { Resend } = await import("resend");
-    const resend = new Resend(apiKey);
+    console.log("[Email] Resend imported successfully");
 
+    const resend = new Resend(apiKey);
+    console.log("[Email] Resend client initialized");
+
+    console.log("[Email] Sending via Resend...");
     const result = await resend.emails.send({
       from: `${fromName} <${fromAddress}>`,
       to,
@@ -134,14 +151,18 @@ export async function sendEmailNotification({
       html,
     });
 
+    console.log("[Email] Resend response:", result);
+
     if (result.error) {
       console.error("[Email] Send failed:", result.error);
       return false;
     }
 
+    console.log("[Email] Email sent successfully, ID:", result.data?.id);
     return true;
   } catch (error) {
-    console.error("[Email] Error sending email:", error);
+    console.error("[Email] Error sending email:", error instanceof Error ? error.message : String(error));
+    console.error("[Email] Full error:", error);
     return false;
   }
 }
