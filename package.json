@@ -12,7 +12,7 @@
     "db:push": "turbo db:push",
     "db:seed": "turbo db:seed",
     "db:init": "pnpm --filter @isytask/db db:init",
-    "postinstall": "turbo db:generate"
+    "postinstall": "test -n \"$VERCEL\" || test -n \"$CI\" || turbo db:generate"
   },
   "devDependencies": {
     "turbo": "^2.1.0",
