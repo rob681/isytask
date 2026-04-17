@@ -26,6 +26,35 @@ const MAX_REGISTER_REQUESTS = 5;
 const REGISTER_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 export const authRouter = router({
+  /** Diagnostic: Check if Resend is configured (PUBLIC for debugging) */
+  diagnosticCheckResend: publicProcedure.query(async ({ ctx }) => {
+    try {
+      // Check if Resend is configured
+      const apiKey = await (ctx.db as any).platformConfig.findUnique({
+        where: { key: "resend_api_key" },
+      });
+      const fromAddress = await (ctx.db as any).platformConfig.findUnique({
+        where: { key: "email_from_address" },
+      });
+
+      return {
+        success: true,
+        resendConfigured: {
+          hasApiKey: !!apiKey?.value,
+          apiKeyLength: apiKey?.value?.length || 0,
+          apiKeyStart: apiKey?.value ? apiKey.value.substring(0, 10) + "..." : "N/A",
+          hasFromAddress: !!fromAddress?.value,
+          fromAddress: fromAddress?.value || "NOT SET",
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }),
+
   /** Mobile login — validates credentials and returns a signed JWT */
   mobileLogin: publicProcedure
     .input(loginSchema)
