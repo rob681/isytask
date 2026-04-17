@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 export default function PlatformConfigPage() {
   const configQuery = trpc.platformConfig.getAll.useQuery();
@@ -21,6 +22,21 @@ export default function PlatformConfigPage() {
 
   const [form, setForm] = useState<Record<string, any>>({});
   const [message, setMessage] = useState("");
+  const [testEmail, setTestEmail] = useState("");
+  const [testResult, setTestResult] = useState<{ success: boolean; message?: string; error?: string } | null>(null);
+
+  const testResendMutation = trpc.platformConfig.testResendEmail.useMutation({
+    onSuccess: (data) => {
+      setTestResult(data);
+      if (data.success) {
+        setMessage("Email de prueba enviado exitosamente");
+        setTimeout(() => setMessage(""), 5000);
+      }
+    },
+    onError: (error) => {
+      setTestResult({ success: false, error: error.message });
+    },
+  });
 
   useEffect(() => {
     if (configQuery.data) {
@@ -100,6 +116,45 @@ export default function PlatformConfigPage() {
             onChange={(v) => updateField("email_from_name", v)}
             placeholder="Isytask"
           />
+        </div>
+
+        {/* Test Resend Email */}
+        <div className="mt-4 p-4 border rounded-lg bg-gray-50 dark:bg-gray-900">
+          <h3 className="font-medium text-sm mb-3">Probar Configuración de Resend</h3>
+          <div className="flex gap-2 mb-3">
+            <input
+              type="email"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              placeholder="tu@email.com"
+              className="flex-1 px-3 py-2 border rounded-lg text-sm bg-background"
+            />
+            <button
+              onClick={() => testResendMutation.mutate({ testEmail })}
+              disabled={testResendMutation.isPending || !testEmail}
+              className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {testResendMutation.isPending ? "Enviando..." : "Enviar Test"}
+            </button>
+          </div>
+
+          {testResult && (
+            <div className={`p-3 rounded-lg text-sm flex gap-2 ${
+              testResult.success
+                ? "bg-green-50 text-green-700 border border-green-200"
+                : "bg-red-50 text-red-700 border border-red-200"
+            }`}>
+              {testResult.success ? (
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              )}
+              <div>
+                <p className="font-medium">{testResult.success ? "✓ Éxito" : "✗ Error"}</p>
+                <p className="text-xs mt-0.5">{testResult.message || testResult.error}</p>
+              </div>
+            </div>
+          )}
         </div>
       </Section>
 
