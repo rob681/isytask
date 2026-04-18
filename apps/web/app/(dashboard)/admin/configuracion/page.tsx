@@ -639,21 +639,24 @@ export default function ConfiguracionPage() {
               { key: "notification_push_enabled", label: "Push en navegador", desc: "Notificaciones push del navegador (requiere claves VAPID)" },
               { key: "notification_whatsapp_enabled", label: "WhatsApp", desc: "Enviar notificaciones por WhatsApp Business API" },
             ].map((channel) => (
-              <label
-                key={channel.key}
-                className="flex items-center justify-between p-3 rounded-md border cursor-pointer hover:bg-muted/50"
-              >
-                <div>
-                  <p className="text-sm font-medium">{channel.label}</p>
-                  <p className="text-xs text-muted-foreground">{channel.desc}</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={values[channel.key] ?? false}
-                  onChange={(e) => updateValue(channel.key, e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-              </label>
+              <div key={channel.key}>
+                <label className="flex items-center justify-between p-3 rounded-md border cursor-pointer hover:bg-muted/50">
+                  <div>
+                    <p className="text-sm font-medium">{channel.label}</p>
+                    <p className="text-xs text-muted-foreground">{channel.desc}</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={values[channel.key] ?? false}
+                    onChange={(e) => updateValue(channel.key, e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                </label>
+                {/* VAPID keys inline — shown right below the push toggle */}
+                {channel.key === "notification_push_enabled" && (
+                  <VapidInlineSection values={values} updateValue={updateValue} />
+                )}
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -724,8 +727,7 @@ export default function ConfiguracionPage() {
           </CardContent>
         </Card>
 
-        {/* Push Notification Configuration */}
-        <PushConfigCard values={values} updateValue={updateValue} />
+        {/* Push Notification Configuration — now inline inside Notifications card above */}
 
         {/* WhatsApp Configuration (Twilio) */}
         {values.notification_whatsapp_enabled && (
@@ -851,8 +853,9 @@ export default function ConfiguracionPage() {
   );
 }
 
-// ─── Push Config Card ───────────────────────────────────
-function PushConfigCard({
+// ─── VAPID Inline Section ───────────────────────────────
+// Shown directly below the "Push en navegador" toggle
+function VapidInlineSection({
   values,
   updateValue,
 }: {
@@ -868,70 +871,67 @@ function PushConfigCard({
     onError: () => setGenerating(false),
   });
 
-  const hasVapidKeys = !!(values.vapid_public_key && values.vapid_private_key);
+  const hasVapidKeys = !!(values.vapid_public_key);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Smartphone className="h-5 w-5 text-muted-foreground" />
+    <div className="ml-3 mr-0 mb-1 mt-0 space-y-3 border-x border-b rounded-b-md px-3 pb-3 pt-2 bg-muted/20">
+      {/* VAPID key status */}
+      {hasVapidKeys ? (
+        <div className="flex items-center gap-2 p-2.5 rounded-md bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+          <Key className="h-3.5 w-3.5 text-green-600 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-green-700 dark:text-green-300">Claves VAPID activas</p>
+            <p className="text-xs text-green-600 dark:text-green-400 font-mono truncate">
+              {(values.vapid_public_key as string)?.substring(0, 44)}…
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto shrink-0 h-7 text-xs"
+            onClick={() => {
+              setGenerating(true);
+              generateVapidMutation.mutate();
+            }}
+            disabled={generating}
+          >
+            {generating ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Key className="h-3 w-3 mr-1" />}
+            Regenerar
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between p-2.5 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800">
           <div>
-            <CardTitle className="text-base">Notificaciones Push</CardTitle>
-            <CardDescription>
-              Permite que los usuarios reciban notificaciones en el navegador incluso sin tener la pestaña abierta
-            </CardDescription>
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Claves VAPID requeridas</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Genera las claves para activar el push en navegador
+            </p>
           </div>
+          <Button
+            size="sm"
+            className="ml-3 h-7 text-xs shrink-0"
+            onClick={() => {
+              setGenerating(true);
+              generateVapidMutation.mutate();
+            }}
+            disabled={generating}
+          >
+            {generating ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Key className="h-3 w-3 mr-1" />}
+            Generar claves
+          </Button>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {hasVapidKeys ? (
-          <div className="flex items-center gap-2 p-3 rounded-md bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
-            <Key className="h-4 w-4 text-green-600" />
-            <div>
-              <p className="text-sm font-medium text-green-700 dark:text-green-300">Claves VAPID configuradas</p>
-              <p className="text-xs text-green-600 dark:text-green-400 font-mono truncate max-w-md">
-                {(values.vapid_public_key as string)?.substring(0, 40)}...
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between p-3 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800">
-            <div>
-              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Claves VAPID no configuradas</p>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Se necesitan claves VAPID para enviar notificaciones push
-              </p>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                setGenerating(true);
-                generateVapidMutation.mutate();
-              }}
-              disabled={generating}
-            >
-              {generating ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-              ) : (
-                <Key className="h-3.5 w-3.5 mr-1" />
-              )}
-              Generar claves
-            </Button>
-          </div>
-        )}
+      )}
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Email de contacto (VAPID subject)</label>
-          <Input
-            value={values.vapid_subject ?? "mailto:admin@isytask.com"}
-            onChange={(e) => updateValue("vapid_subject", e.target.value)}
-            placeholder="mailto:tu@email.com"
-          />
-          <p className="text-xs text-muted-foreground">
-            Contacto para los servidores push. Formato: mailto:tu@email.com
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+      {/* VAPID contact email */}
+      <div className="flex items-center gap-3">
+        <label className="text-xs font-medium text-muted-foreground w-36 shrink-0">Email de contacto</label>
+        <Input
+          className="h-7 text-xs"
+          value={values.vapid_subject ?? "mailto:admin@isytask.com"}
+          onChange={(e) => updateValue("vapid_subject", e.target.value)}
+          placeholder="mailto:tu@email.com"
+        />
+      </div>
+    </div>
   );
 }
