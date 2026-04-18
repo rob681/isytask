@@ -56,6 +56,8 @@ enum NotificationChannel {
   EMAIL
   WHATSAPP
   IN_APP
+  PUSH
+  EXPO_PUSH
 }
 
 enum NotificationType {
