@@ -64,10 +64,12 @@ export default function IsywebProjectDetailPage({
   }
 
   const statusInfo = STATUS_LABELS[project.status];
+  const baseUrl =
+    typeof window !== "undefined" ? window.location.origin : "https://isytask-web.vercel.app";
   const widgetSnippet = `<script>
   (function(){
     var s = document.createElement('script');
-    s.src = 'https://isyweb.com/widget.js?project=${project.widgetApiKey}';
+    s.src = '${baseUrl}/api/isyweb-widget?project=${project.widgetApiKey}';
     s.async = true;
     document.head.appendChild(s);
   })();
