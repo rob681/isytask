@@ -24,6 +24,7 @@ import { videoCommentsRouter } from "./routers/video-comments.router";
 import { crossAppRouter } from "./routers/cross-app.router";
 import { platformConfigRouter } from "./routers/platform-config.router";
 import { mfaRouter } from "./routers/mfa.router";
+import { isywebRouter } from "./routers/isyweb.router";
 
 export const appRouter = router({
   auth: authRouter,
@@ -51,6 +52,7 @@ export const appRouter = router({
   crossApp: crossAppRouter,
   platformConfig: platformConfigRouter,
   mfa: mfaRouter,
+  isyweb: isywebRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -106,6 +106,7 @@ enum FieldType {
 enum Product {
   ISYTASK
   ISYSOCIAL
+  ISYWEB
 }
 
 // ──────────────────────────────────────────────
@@ -418,6 +419,10 @@ model Task {
   isysocialPostId   String? // ID of the linked Post in isysocial schema
   isysocialPostType String? // "IMAGE" | "CAROUSEL" | "STORY" | "REEL" | "VIDEO" | "TEXT"
 
+  // Cross-app: Isyweb integration (task created from annotation)
+  isywebAnnotationId String? @unique // backlink to the annotation that originated this task
+  isywebAnnotation   IsywebAnnotation? @relation(fields: [isywebAnnotationId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -437,6 +442,7 @@ model Task {
   @@index([status, category])
   @@index([createdAt])
   @@index([isysocialPostId])
+  @@index([isywebAnnotationId])
   @@map("tasks")
 }
 
@@ -949,4 +955,322 @@ model RateLimitRecord {
 
   @@index([expiresAt])
   @@map("rate_limit_records")
+}
+
+// ──────────────────────────────────────────────
+// ISYWEB — Website review & feedback product
+// ──────────────────────────────────────────────
+
+enum IsywebProjectStatus {
+  DRAFT
+  BROCHURE
+  IN_DEVELOPMENT
+  IN_REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+enum IsywebSiteType {
+  LANDING
+  ONE_PAGE
+  MULTI_PAGE
+  ECOMMERCE
+  WEBAPP
+  BLOG
+  OTHER
+}
+
+enum IsywebEmbedMethod {
+  SCRIPT       // Tier 1: client embeds <script> on dev site (preferred, ~90% cases)
+  PROXY        // Tier 2: server-side Playwright proxy with header-stripping
+  SCREENSHOT   // Tier 3: static multi-viewport snapshots
+}
+
+enum IsywebPageStatus {
+  PLANNED
+  IN_PROGRESS
+  READY_FOR_REVIEW
+  APPROVED
+}
+
+enum IsywebBrochureMode {
+  AI_ASSISTED
+  MANUAL
+}
+
+enum IsywebRevisionStatus {
+  OPEN
+  SUBMITTED
+  IN_PROGRESS
+  RESOLVED
+  APPROVED
+}
+
+enum IsywebAnnotationType {
+  PIN
+  PRIORITY      // P1/P2/P3 badge
+  POSTIT
+  EMOJI
+  CAPTURE       // area capture with note
+  ARROW
+  CIRCLE
+  RECTANGLE
+  FREEHAND
+  HIGHLIGHT
+  TEXT
+}
+
+enum IsywebViewport {
+  DESKTOP
+  TABLET
+  MOBILE
+}
+
+enum IsywebAnnotationStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+enum IsywebAssetCategory {
+  LOGO
+  BRAND_MANUAL
+  PRODUCT
+  REFERENCE_LINK
+  IMAGE
+  VIDEO
+  DOCUMENT
+  COPY
+}
+
+// Project (a website being built/reviewed)
+model IsywebProject {
+  id          String              @id @default(cuid())
+  agencyId    String
+  clientId    String              // FK to ClientProfile
+  name        String
+  description String?             @db.Text
+  status      IsywebProjectStatus @default(DRAFT)
+  siteType    IsywebSiteType?
+
+  devUrl        String?
+  productionUrl String?
+  embedMethod   IsywebEmbedMethod @default(SCRIPT)
+  widgetApiKey  String            @unique @default(cuid()) // identifies project in widget.js
+
+  // Time-bound client access
+  clientAccessExpiresAt DateTime?
+
+  // Revision rounds control
+  maxRevisionRounds Int @default(3)
+  currentRound      Int @default(1)
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pages           IsywebPage[]
+  brochureSession IsywebBrochureSession?
+  revisions       IsywebRevision[]
+  annotations     IsywebAnnotation[]
+  assets          IsywebAsset[]
+  assignments     IsywebProjectAssignment[]
+
+  @@index([agencyId, status])
+  @@index([clientId])
+  @@map("isyweb_projects")
+}
+
+// Pages / tabs the site will have
+model IsywebPage {
+  id          String           @id @default(cuid())
+  projectId   String
+  project     IsywebProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?          @db.Text
+  order       Int              @default(0)
+  url         String?
+  status      IsywebPageStatus @default(PLANNED)
+
+  annotations IsywebAnnotation[]
+
+  @@index([projectId])
+  @@map("isyweb_pages")
+}
+
+// Brochure (briefing) — AI-assisted or manual
+model IsywebBrochureSession {
+  id        String             @id @default(cuid())
+  projectId String             @unique
+  project   IsywebProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mode      IsywebBrochureMode
+  status    String             @default("active") // "active" | "completed"
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  questions IsywebBrochureQuestion[]
+  fields    IsywebBrochureField[]
+
+  @@map("isyweb_brochure_sessions")
+}
+
+model IsywebBrochureQuestion {
+  id        String                @id @default(cuid())
+  sessionId String
+  session   IsywebBrochureSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  order     Int
+  question  String                @db.Text
+  answer    String?               @db.Text
+  fieldKey  String?               // maps to IsywebBrochureField.key
+  createdAt DateTime              @default(now())
+
+  @@index([sessionId])
+  @@map("isyweb_brochure_questions")
+}
+
+model IsywebBrochureField {
+  id        String                @id @default(cuid())
+  sessionId String
+  session   IsywebBrochureSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  key       String                // "site_type" | "primary_color" | "target_audience" | "references" | etc.
+  label     String
+  value     Json                  // string | array | object
+  source    String                // "ai" | "client" | "admin"
+  updatedAt DateTime              @updatedAt
+
+  @@unique([sessionId, key])
+  @@index([sessionId])
+  @@map("isyweb_brochure_fields")
+}
+
+// Review rounds
+model IsywebRevision {
+  id          String               @id @default(cuid())
+  projectId   String
+  project     IsywebProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  roundNumber Int
+  status      IsywebRevisionStatus @default(OPEN)
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  approvedBy  String?              // userId of approver (cliente)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  annotations IsywebAnnotation[]
+  snapshot    IsywebSnapshot?
+
+  @@unique([projectId, roundNumber])
+  @@index([projectId, status])
+  @@map("isyweb_revisions")
+}
+
+// The star: visual annotations
+model IsywebAnnotation {
+  id         String               @id @default(cuid())
+  projectId  String
+  project    IsywebProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pageId     String?
+  page       IsywebPage?          @relation(fields: [pageId], references: [id])
+  revisionId String
+  revision   IsywebRevision       @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  authorId   String
+
+  type       IsywebAnnotationType
+
+  // Anchoring (3-tier robust anchor)
+  pageUrl       String              // page where the annotation lives
+  viewport      IsywebViewport      @default(DESKTOP)
+  domSelector   String?             // CSS selector (preferred)
+  domXPath      String?             // XPath fallback
+  domTextSnippet String?            // first words of element (last-resort re-anchor)
+
+  // Position
+  x      Float
+  y      Float
+  width  Float?
+  height Float?
+
+  // Type-specific content
+  text         String?     @db.Text  // PIN, POSTIT, TEXT, CAPTURE note
+  emoji        String?                // EMOJI
+  priorityLevel Int?                  // PRIORITY: 1, 2, 3
+  pathData     Json?                  // FREEHAND points
+  color        String      @default("#ef4444")
+  strokeWidth  Int         @default(3)
+
+  // Status
+  status      IsywebAnnotationStatus @default(OPEN)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+
+  // Cross-app: link to IsyTask
+  task        Task?
+
+  comments    IsywebComment[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([projectId, revisionId])
+  @@index([pageUrl, viewport])
+  @@index([authorId])
+  @@map("isyweb_annotations")
+}
+
+model IsywebComment {
+  id           String           @id @default(cuid())
+  annotationId String
+  annotation   IsywebAnnotation @relation(fields: [annotationId], references: [id], onDelete: Cascade)
+  authorId     String
+  content      String           @db.Text
+  createdAt    DateTime         @default(now())
+
+  @@index([annotationId])
+  @@map("isyweb_comments")
+}
+
+// Visual snapshot per round (for before/after comparison & legal audit)
+model IsywebSnapshot {
+  id           String         @id @default(cuid())
+  revisionId   String         @unique
+  revision     IsywebRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  desktopUrl   String         // Supabase Storage URL
+  tabletUrl    String?
+  mobileUrl    String?
+  htmlSnapshot String?        @db.Text // optional full HTML capture
+  capturedAt   DateTime       @default(now())
+
+  @@map("isyweb_snapshots")
+}
+
+// Client-uploaded assets (logo, brand manual, products, references, copy)
+model IsywebAsset {
+  id           String              @id @default(cuid())
+  projectId    String
+  project      IsywebProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  category     IsywebAssetCategory
+  name         String
+  description  String?             @db.Text
+  fileUrl      String?
+  externalUrl  String?
+  metadata     Json?
+  uploadedById String
+  createdAt    DateTime            @default(now())
+
+  @@index([projectId, category])
+  @@map("isyweb_assets")
+}
+
+// Colaborador assignments per project
+model IsywebProjectAssignment {
+  id            String        @id @default(cuid())
+  projectId     String
+  project       IsywebProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  colaboradorId String
+  role          String?       // "developer" | "designer" | "qa"
+  assignedAt    DateTime      @default(now())
+
+  @@unique([projectId, colaboradorId])
+  @@index([projectId])
+  @@map("isyweb_project_assignments")
 }

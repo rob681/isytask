@@ -32,6 +32,7 @@ import {
   ExternalLink,
   Share2,
   MessageSquare,
+  Pencil,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
@@ -66,6 +67,7 @@ const adminNav: NavEntry[] = [
   { label: "Equipo", href: "/admin/equipo", icon: <Users className="h-5 w-5" />, permission: "manage_team" },
   { label: "Clientes", href: "/admin/clientes", icon: <UserCircle className="h-5 w-5" />, permission: "manage_clients" },
   { label: "Servicios", href: "/admin/servicios", icon: <Briefcase className="h-5 w-5" />, permission: "manage_services" },
+  { label: "Isyweb", href: "/admin/isyweb", icon: <Pencil className="h-5 w-5" />, permission: "manage_clients" },
   {
     label: "Tareas",
     icon: <ListTodo className="h-5 w-5" />,
@@ -105,6 +107,7 @@ const adminNavFlat: NavItem[] = [
   { label: "Equipo", href: "/admin/equipo", icon: <Users className="h-5 w-5" />, permission: "manage_team" },
   { label: "Clientes", href: "/admin/clientes", icon: <UserCircle className="h-5 w-5" />, permission: "manage_clients" },
   { label: "Servicios", href: "/admin/servicios", icon: <Briefcase className="h-5 w-5" />, permission: "manage_services" },
+  { label: "Isyweb", href: "/admin/isyweb", icon: <Pencil className="h-5 w-5" />, permission: "manage_clients" },
   { label: "Tareas", href: "/admin/tareas", icon: <ListTodo className="h-5 w-5" />, permission: "manage_tasks" },
   { label: "Nueva Tarea", href: "/admin/nueva-tarea", icon: <PlusCircle className="h-5 w-5" />, permission: "manage_tasks" },
   { label: "Recurrentes", href: "/admin/tareas-recurrentes", icon: <RefreshCw className="h-5 w-5" />, permission: "manage_tasks" },
@@ -160,6 +163,7 @@ const clienteNav: NavItem[] = [
   { label: "Cola de Tareas", href: "/cliente", icon: <ListTodo className="h-5 w-5" /> },
   { label: "Nueva Tarea", href: "/cliente/nueva-tarea", icon: <PlusCircle className="h-5 w-5" /> },
   { label: "Mis Tareas", href: "/cliente/tareas", icon: <ClipboardList className="h-5 w-5" /> },
+  { label: "Mis Sitios Web", href: "/cliente/isyweb", icon: <Pencil className="h-5 w-5" /> },
   { label: "Notificaciones", href: "/notificaciones", icon: <Bell className="h-5 w-5" /> },
 ];
 
