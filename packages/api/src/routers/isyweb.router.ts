@@ -691,18 +691,236 @@ export const isywebRouter = router({
       return ctx.db.isywebAnnotation.delete({ where: { id: input.id } });
     }),
 
-  // ── REVISIONS ──
+  // ── REVISIONS (Phase 4) ──
 
   currentRevision: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       const project = await assertProjectAccess(ctx, input.projectId);
-      // Return the latest non-approved revision, or create a new one if all are approved
       const latest = await ctx.db.isywebRevision.findFirst({
         where: { projectId: project.id },
         orderBy: { roundNumber: "desc" },
       });
       return latest;
+    }),
+
+  revisionHistory: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectAccess(ctx, input.projectId);
+      return ctx.db.isywebRevision.findMany({
+        where: { projectId: input.projectId },
+        orderBy: { roundNumber: "asc" },
+        include: {
+          snapshot: true,
+          _count: { select: { annotations: true } },
+        },
+      });
+    }),
+
+  /** Cliente envía la ronda actual al admin para que la trabaje. */
+  submitRevision: protectedProcedure
+    .input(z.object({ projectId: z.string(), revisionId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const project = await assertProjectAccess(ctx, input.projectId);
+      const rev = await ctx.db.isywebRevision.findUnique({
+        where: { id: input.revisionId },
+      });
+      if (!rev || rev.projectId !== project.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      if (rev.status !== "OPEN") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Esta ronda ya fue enviada (estado: ${rev.status})`,
+        });
+      }
+      const annCount = await ctx.db.isywebAnnotation.count({
+        where: { revisionId: rev.id },
+      });
+      if (annCount === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No hay anotaciones en esta ronda. Agrega al menos una.",
+        });
+      }
+      const updated = await ctx.db.isywebRevision.update({
+        where: { id: rev.id },
+        data: { status: "SUBMITTED", submittedAt: new Date() },
+      });
+      // Move project to IN_REVIEW
+      if (project.status !== "IN_REVIEW") {
+        await ctx.db.isywebProject.update({
+          where: { id: project.id },
+          data: { status: "IN_REVIEW" },
+        });
+      }
+      return updated;
+    }),
+
+  /** Admin marca la ronda como "en progreso" cuando empieza a trabajar los cambios. */
+  startWorkingRevision: adminProcedure
+    .input(z.object({ revisionId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const rev = await ctx.db.isywebRevision.findUnique({
+        where: { id: input.revisionId },
+      });
+      if (!rev) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertProjectAccess(ctx, rev.projectId);
+      return ctx.db.isywebRevision.update({
+        where: { id: rev.id },
+        data: { status: "IN_PROGRESS" },
+      });
+    }),
+
+  /** Admin marca la ronda como "lista para revisar nuevamente" — el cliente puede aprobar o crear nueva ronda. */
+  resolveRevision: adminProcedure
+    .input(z.object({ revisionId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const rev = await ctx.db.isywebRevision.findUnique({
+        where: { id: input.revisionId },
+      });
+      if (!rev) throw new TRPCError({ code: "NOT_FOUND" });
+      const project = await assertProjectAccess(ctx, rev.projectId);
+      const updated = await ctx.db.isywebRevision.update({
+        where: { id: rev.id },
+        data: { status: "RESOLVED" },
+      });
+      // Project goes back to IN_REVIEW for client final check
+      await ctx.db.isywebProject.update({
+        where: { id: project.id },
+        data: { status: "IN_REVIEW" },
+      });
+      return updated;
+    }),
+
+  /**
+   * Cliente aprueba la ronda final → proyecto APPROVED, timestamp legal.
+   * El consent text se guarda en el snapshot.htmlSnapshot como auditoría.
+   */
+  approveRevision: protectedProcedure
+    .input(
+      z.object({
+        revisionId: z.string(),
+        consent: z
+          .string()
+          .min(20, "Confirma con un mensaje claro de aprobación"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const rev = await ctx.db.isywebRevision.findUnique({
+        where: { id: input.revisionId },
+        include: { snapshot: true },
+      });
+      if (!rev) throw new TRPCError({ code: "NOT_FOUND" });
+      const project = await assertProjectAccess(ctx, rev.projectId);
+      if (ctx.session.user.role !== "CLIENTE" && ctx.session.user.role !== "ADMIN" && ctx.session.user.role !== "SUPER_ADMIN") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Solo el cliente puede aprobar" });
+      }
+
+      const now = new Date();
+      const auditHtml = `<!-- Isyweb approval audit -->
+<approval>
+  <project>${project.name} (${project.id})</project>
+  <revision>${rev.roundNumber}</revision>
+  <approvedBy>${ctx.session.user.id} (${ctx.session.user.email ?? ""})</approvedBy>
+  <approvedAt>${now.toISOString()}</approvedAt>
+  <consent>${input.consent.replace(/[<>]/g, "")}</consent>
+</approval>`;
+
+      const updated = await ctx.db.isywebRevision.update({
+        where: { id: rev.id },
+        data: {
+          status: "APPROVED",
+          approvedAt: now,
+          approvedBy: ctx.session.user.id,
+        },
+      });
+
+      // Persist consent into snapshot (create if missing)
+      if (rev.snapshot) {
+        await ctx.db.isywebSnapshot.update({
+          where: { revisionId: rev.id },
+          data: { htmlSnapshot: auditHtml },
+        });
+      } else {
+        await ctx.db.isywebSnapshot.create({
+          data: {
+            revisionId: rev.id,
+            desktopUrl: "approval://no-snapshot",
+            htmlSnapshot: auditHtml,
+          },
+        });
+      }
+
+      // Project APPROVED
+      await ctx.db.isywebProject.update({
+        where: { id: project.id },
+        data: { status: "APPROVED" },
+      });
+
+      return updated;
+    }),
+
+  /** Cliente abre nueva ronda (pide más cambios). Solo si no se pasó el límite. */
+  startNextRound: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const project = await assertProjectAccess(ctx, input.projectId);
+      if (project.currentRound >= project.maxRevisionRounds) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Ya alcanzaste el límite de ${project.maxRevisionRounds} rondas. Contacta a tu agencia para extenderlo.`,
+        });
+      }
+      const nextNumber = project.currentRound + 1;
+      const newRev = await ctx.db.isywebRevision.create({
+        data: {
+          projectId: project.id,
+          roundNumber: nextNumber,
+          status: "OPEN",
+        },
+      });
+      await ctx.db.isywebProject.update({
+        where: { id: project.id },
+        data: { currentRound: nextNumber, status: "IN_DEVELOPMENT" },
+      });
+      return newRev;
+    }),
+
+  /**
+   * Guarda un snapshot de la ronda. El cliente envía las URLs (capturadas con
+   * html2canvas en el navegador, o por Playwright en server cuando esté disponible).
+   */
+  saveSnapshot: protectedProcedure
+    .input(
+      z.object({
+        revisionId: z.string(),
+        desktopUrl: z.string().min(1),
+        tabletUrl: z.string().optional(),
+        mobileUrl: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const rev = await ctx.db.isywebRevision.findUnique({
+        where: { id: input.revisionId },
+      });
+      if (!rev) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertProjectAccess(ctx, rev.projectId);
+      return ctx.db.isywebSnapshot.upsert({
+        where: { revisionId: rev.id },
+        create: {
+          revisionId: rev.id,
+          desktopUrl: input.desktopUrl,
+          tabletUrl: input.tabletUrl,
+          mobileUrl: input.mobileUrl,
+        },
+        update: {
+          desktopUrl: input.desktopUrl,
+          tabletUrl: input.tabletUrl,
+          mobileUrl: input.mobileUrl,
+        },
+      });
     }),
 
   // Convert annotation → IsyTask task (Phase 5 stub, not wired yet)

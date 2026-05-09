@@ -17,6 +17,10 @@ import {
   ListTodo,
   Image as ImageIcon,
   Users,
+  CheckCircle2,
+  PlayCircle,
+  Send,
+  Lock,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -37,7 +41,21 @@ export default function IsywebProjectDetailPage({
   const { id } = use(params);
   const router = useRouter();
 
+  const utils = trpc.useUtils();
   const { data: project, isLoading, error } = trpc.isyweb.getById.useQuery({ id });
+  const { data: rounds = [] } = trpc.isyweb.revisionHistory.useQuery({ projectId: id });
+  const startWorking = trpc.isyweb.startWorkingRevision.useMutation({
+    onSuccess: () => {
+      utils.isyweb.revisionHistory.invalidate({ projectId: id });
+      utils.isyweb.getById.invalidate({ id });
+    },
+  });
+  const resolveRev = trpc.isyweb.resolveRevision.useMutation({
+    onSuccess: () => {
+      utils.isyweb.revisionHistory.invalidate({ projectId: id });
+      utils.isyweb.getById.invalidate({ id });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -228,6 +246,91 @@ export default function IsywebProjectDetailPage({
             </CardContent>
           </Card>
         </div>
+
+        {/* Rounds timeline */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="h-4 w-4" />
+              Rondas de revisión
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {rounds.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">
+                Sin rondas todavía.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {rounds.map((r: any) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between border rounded-lg p-3 hover:bg-gray-50 transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                          r.status === "APPROVED"
+                            ? "bg-emerald-500"
+                            : r.status === "RESOLVED"
+                            ? "bg-purple-500"
+                            : r.status === "IN_PROGRESS"
+                            ? "bg-blue-500"
+                            : r.status === "SUBMITTED"
+                            ? "bg-amber-500"
+                            : "bg-gray-400"
+                        }`}
+                      >
+                        R{r.roundNumber}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">
+                          Ronda {r.roundNumber}{" "}
+                          <Badge variant="outline" className="ml-1 text-xs">
+                            {r.status}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {r._count?.annotations ?? 0} anotaciones ·{" "}
+                          {r.submittedAt
+                            ? `enviada ${new Date(r.submittedAt).toLocaleDateString()}`
+                            : "no enviada aún"}
+                          {r.approvedAt && ` · aprobada ${new Date(r.approvedAt).toLocaleDateString()}`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {r.status === "SUBMITTED" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startWorking.mutate({ revisionId: r.id })}
+                          disabled={startWorking.isPending}
+                        >
+                          <PlayCircle className="h-4 w-4 mr-1" />
+                          Empezar a trabajar
+                        </Button>
+                      )}
+                      {r.status === "IN_PROGRESS" && (
+                        <Button
+                          size="sm"
+                          onClick={() => resolveRev.mutate({ revisionId: r.id })}
+                          disabled={resolveRev.isPending}
+                        >
+                          <Send className="h-4 w-4 mr-1" />
+                          Notificar al cliente
+                        </Button>
+                      )}
+                      {r.status === "APPROVED" && (
+                        <Lock className="h-4 w-4 text-emerald-600" />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Embed snippet */}
         {project.embedMethod === "SCRIPT" && (

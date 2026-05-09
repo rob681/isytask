@@ -38,6 +38,8 @@ import {
   Tablet,
   Smartphone,
   Loader2,
+  CheckCircle2,
+  X,
 } from "lucide-react";
 
 type Tool =
@@ -107,6 +109,31 @@ export function ReviewEditor({
   const deleteAnn = trpc.isyweb.annotationDelete.useMutation({
     onSuccess: () => utils.isyweb.annotationsList.invalidate(),
   });
+  const submitRevision = trpc.isyweb.submitRevision.useMutation({
+    onSuccess: () => {
+      utils.isyweb.currentRevision.invalidate();
+      utils.isyweb.getById.invalidate({ id: projectId });
+      setSubmitOpen(false);
+    },
+  });
+  const approveRevision = trpc.isyweb.approveRevision.useMutation({
+    onSuccess: () => {
+      utils.isyweb.currentRevision.invalidate();
+      utils.isyweb.getById.invalidate({ id: projectId });
+      setApproveOpen(false);
+    },
+  });
+  const startNextRound = trpc.isyweb.startNextRound.useMutation({
+    onSuccess: () => {
+      utils.isyweb.currentRevision.invalidate();
+      utils.isyweb.getById.invalidate({ id: projectId });
+      utils.isyweb.annotationsList.invalidate();
+    },
+  });
+
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [consentText, setConsentText] = useState("");
 
   const [tool, setTool] = useState<Tool>("select");
   const [color, setColor] = useState(COLORS[0]);
@@ -398,12 +425,98 @@ export function ReviewEditor({
               );
             })}
           </div>
-          <Button size="sm">
-            <Send className="h-4 w-4 mr-1" />
-            Enviar revisión
-          </Button>
+          {revision?.status === "OPEN" && (
+            <Button size="sm" onClick={() => setSubmitOpen(true)} disabled={annotations.length === 0}>
+              <Send className="h-4 w-4 mr-1" />
+              Enviar revisión
+            </Button>
+          )}
+          {revision?.status === "RESOLVED" && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => startNextRound.mutate({ projectId })}>
+                Pedir más cambios
+              </Button>
+              <Button size="sm" onClick={() => setApproveOpen(true)}>
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                Aprobar final
+              </Button>
+            </>
+          )}
+          {revision?.status === "APPROVED" && (
+            <Badge className="bg-emerald-100 text-emerald-700">✓ Proyecto aprobado</Badge>
+          )}
+          {(revision?.status === "SUBMITTED" || revision?.status === "IN_PROGRESS") && (
+            <Badge className="bg-amber-100 text-amber-700">Esperando agencia</Badge>
+          )}
         </div>
       </div>
+
+      {/* Submit modal */}
+      {submitOpen && (
+        <Modal onClose={() => setSubmitOpen(false)} title="Enviar revisión a la agencia">
+          <p className="text-sm text-muted-foreground mb-4">
+            Vas a enviar <b>{annotations.length} anotaciones</b> a la agencia.
+            Una vez enviada, no podrás agregar más anotaciones a esta ronda hasta
+            que la agencia las trabaje.
+          </p>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setSubmitOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() =>
+                revision && submitRevision.mutate({ projectId, revisionId: revision.id })
+              }
+              disabled={submitRevision.isPending}
+            >
+              {submitRevision.isPending ? "Enviando…" : "Confirmar y enviar"}
+            </Button>
+          </div>
+          {submitRevision.error && (
+            <p className="text-sm text-red-600 mt-2">{submitRevision.error.message}</p>
+          )}
+        </Modal>
+      )}
+
+      {/* Approve modal */}
+      {approveOpen && (
+        <Modal onClose={() => setApproveOpen(false)} title="Aprobación final del sitio">
+          <p className="text-sm text-muted-foreground mb-3">
+            Estás por aprobar la versión final de <b>{projectName}</b> en la ronda {revision?.roundNumber}.
+            Esta acción es <b>definitiva</b> — el proyecto se marcará como completado y se guardará un
+            registro legal con timestamp y tu identidad.
+          </p>
+          <label className="text-sm font-medium block mb-1">
+            Mensaje de aprobación (mínimo 20 caracteres)
+          </label>
+          <textarea
+            className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={consentText}
+            onChange={(e) => setConsentText(e.target.value)}
+            placeholder="Confirmo que el sitio cumple con lo solicitado y autorizo el cierre del proyecto."
+          />
+          <div className="flex gap-2 justify-end mt-3">
+            <Button variant="outline" onClick={() => setApproveOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() =>
+                revision &&
+                approveRevision.mutate({
+                  revisionId: revision.id,
+                  consent: consentText.trim(),
+                })
+              }
+              disabled={consentText.trim().length < 20 || approveRevision.isPending}
+            >
+              {approveRevision.isPending ? "Aprobando…" : "Aprobar y cerrar proyecto"}
+            </Button>
+          </div>
+          {approveRevision.error && (
+            <p className="text-sm text-red-600 mt-2">{approveRevision.error.message}</p>
+          )}
+        </Modal>
+      )}
 
       {/* Canvas area */}
       <div className="flex-1 relative overflow-auto">
@@ -762,6 +875,36 @@ function DrawingPreview({ drawing, drawStart, color }: any) {
     );
   }
   return null;
+}
+
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-2xl max-w-lg w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold">{title}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 function DomAnnotation({
