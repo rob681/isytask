@@ -2,8 +2,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
   router,
-  protectedProcedure,
-  adminProcedure,
+  isywebProcedure,
+  isywebAdminProcedure,
   getAgencyId,
 } from "../trpc";
 import { chatCompletion } from "../lib/openrouter";
@@ -68,7 +68,7 @@ async function assertProjectAccess(ctx: any, projectId: string) {
 export const isywebRouter = router({
   // ── Projects ──
 
-  list: protectedProcedure
+  list: isywebProcedure
     .input(
       z
         .object({
@@ -104,7 +104,7 @@ export const isywebRouter = router({
       });
     }),
 
-  getById: protectedProcedure
+  getById: isywebProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const project = await ctx.db.isywebProject.findUnique({
@@ -154,7 +154,7 @@ export const isywebRouter = router({
       return project;
     }),
 
-  create: adminProcedure
+  create: isywebAdminProcedure
     .input(
       z.object({
         clientId: z.string(),
@@ -204,7 +204,7 @@ export const isywebRouter = router({
       });
     }),
 
-  update: adminProcedure
+  update: isywebAdminProcedure
     .input(
       z.object({
         id: z.string(),
@@ -234,7 +234,7 @@ export const isywebRouter = router({
       return ctx.db.isywebProject.update({ where: { id }, data });
     }),
 
-  archive: adminProcedure
+  archive: isywebAdminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const agencyId = getAgencyId(ctx);
@@ -252,7 +252,7 @@ export const isywebRouter = router({
 
   // ── Pages ──
 
-  addPage: adminProcedure
+  addPage: isywebAdminProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -281,7 +281,7 @@ export const isywebRouter = router({
 
   // ── Project assignments (colaboradores) ──
 
-  assignColaborador: adminProcedure
+  assignColaborador: isywebAdminProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -313,7 +313,7 @@ export const isywebRouter = router({
       });
     }),
 
-  unassignColaborador: adminProcedure
+  unassignColaborador: isywebAdminProcedure
     .input(z.object({ assignmentId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.isywebProjectAssignment.delete({
@@ -323,7 +323,7 @@ export const isywebRouter = router({
 
   // ── BROCHURE (briefing with AI assistance or manual) ──
 
-  brochureGet: protectedProcedure
+  brochureGet: isywebProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       const project = await assertProjectAccess(ctx, input.projectId);
@@ -342,7 +342,7 @@ export const isywebRouter = router({
       };
     }),
 
-  brochureStart: protectedProcedure
+  brochureStart: isywebProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -386,7 +386,7 @@ export const isywebRouter = router({
       return session;
     }),
 
-  brochureAnswer: protectedProcedure
+  brochureAnswer: isywebProcedure
     .input(
       z.object({
         sessionId: z.string(),
@@ -509,7 +509,7 @@ export const isywebRouter = router({
       };
     }),
 
-  brochureSetField: protectedProcedure
+  brochureSetField: isywebProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -557,7 +557,7 @@ export const isywebRouter = router({
       });
     }),
 
-  brochureComplete: protectedProcedure
+  brochureComplete: isywebProcedure
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const project = await assertProjectAccess(ctx, input.projectId);
@@ -579,7 +579,7 @@ export const isywebRouter = router({
 
   // ── ANNOTATIONS (Phase 3 — visual review) ──
 
-  annotationsList: protectedProcedure
+  annotationsList: isywebProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -605,7 +605,7 @@ export const isywebRouter = router({
       });
     }),
 
-  annotationCreate: protectedProcedure
+  annotationCreate: isywebProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -651,7 +651,7 @@ export const isywebRouter = router({
       });
     }),
 
-  annotationUpdate: protectedProcedure
+  annotationUpdate: isywebProcedure
     .input(
       z.object({
         id: z.string(),
@@ -680,7 +680,7 @@ export const isywebRouter = router({
       return ctx.db.isywebAnnotation.update({ where: { id }, data });
     }),
 
-  annotationDelete: protectedProcedure
+  annotationDelete: isywebProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const ann = await ctx.db.isywebAnnotation.findUnique({
@@ -693,7 +693,7 @@ export const isywebRouter = router({
 
   // ── REVISIONS (Phase 4) ──
 
-  currentRevision: protectedProcedure
+  currentRevision: isywebProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       const project = await assertProjectAccess(ctx, input.projectId);
@@ -704,7 +704,7 @@ export const isywebRouter = router({
       return latest;
     }),
 
-  revisionHistory: protectedProcedure
+  revisionHistory: isywebProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectAccess(ctx, input.projectId);
@@ -719,7 +719,7 @@ export const isywebRouter = router({
     }),
 
   /** Cliente envía la ronda actual al admin para que la trabaje. */
-  submitRevision: protectedProcedure
+  submitRevision: isywebProcedure
     .input(z.object({ projectId: z.string(), revisionId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const project = await assertProjectAccess(ctx, input.projectId);
@@ -759,7 +759,7 @@ export const isywebRouter = router({
     }),
 
   /** Admin marca la ronda como "en progreso" cuando empieza a trabajar los cambios. */
-  startWorkingRevision: adminProcedure
+  startWorkingRevision: isywebAdminProcedure
     .input(z.object({ revisionId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const rev = await ctx.db.isywebRevision.findUnique({
@@ -774,7 +774,7 @@ export const isywebRouter = router({
     }),
 
   /** Admin marca la ronda como "lista para revisar nuevamente" — el cliente puede aprobar o crear nueva ronda. */
-  resolveRevision: adminProcedure
+  resolveRevision: isywebAdminProcedure
     .input(z.object({ revisionId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const rev = await ctx.db.isywebRevision.findUnique({
@@ -798,7 +798,7 @@ export const isywebRouter = router({
    * Cliente aprueba la ronda final → proyecto APPROVED, timestamp legal.
    * El consent text se guarda en el snapshot.htmlSnapshot como auditoría.
    */
-  approveRevision: protectedProcedure
+  approveRevision: isywebProcedure
     .input(
       z.object({
         revisionId: z.string(),
@@ -863,7 +863,7 @@ export const isywebRouter = router({
     }),
 
   /** Cliente abre nueva ronda (pide más cambios). Solo si no se pasó el límite. */
-  startNextRound: protectedProcedure
+  startNextRound: isywebProcedure
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const project = await assertProjectAccess(ctx, input.projectId);
@@ -892,7 +892,7 @@ export const isywebRouter = router({
    * Guarda un snapshot de la ronda. El cliente envía las URLs (capturadas con
    * html2canvas en el navegador, o por Playwright en server cuando esté disponible).
    */
-  saveSnapshot: protectedProcedure
+  saveSnapshot: isywebProcedure
     .input(
       z.object({
         revisionId: z.string(),
@@ -927,7 +927,7 @@ export const isywebRouter = router({
 
   // ── Stats / dashboard widget ──
 
-  stats: protectedProcedure.query(async ({ ctx }) => {
+  stats: isywebProcedure.query(async ({ ctx }) => {
     const agencyId = getAgencyId(ctx);
     const [total, inDev, inReview, approved] = await Promise.all([
       ctx.db.isywebProject.count({ where: { agencyId } }),

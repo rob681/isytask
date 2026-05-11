@@ -184,6 +184,22 @@ function useNavItems() {
   const avatarUrl = (session?.user as any)?.avatarUrl;
   const hasAdminAccess = role === "COLABORADOR" && permissions.length > 0;
 
+  // Subscription-aware product access (Level 1 + Level 2 gating)
+  const { data: access } = trpc.ecosystem.getMyAccess.useQuery(undefined, {
+    enabled: !!session?.user,
+    staleTime: 60_000,
+  });
+  const hasIsyweb = !!access?.isyweb;
+
+  // Helper: remove Isyweb entries if user doesn't have access
+  const filterIsyweb = (entries: NavEntry[]): NavEntry[] => {
+    if (hasIsyweb) return entries;
+    return entries.filter((e) => {
+      if (isNavGroup(e)) return e.label !== "Isyweb";
+      return e.href !== "/admin/isyweb" && e.href !== "/cliente/isyweb";
+    });
+  };
+
   let navEntries: NavEntry[];
   let flatItems: NavItem[] | null = null; // For colaborador permission filtering
 
@@ -198,7 +214,7 @@ function useNavItems() {
   } else if (role === "ANALISTA") {
     navEntries = analistaNav;
   } else if (role === "ADMIN") {
-    navEntries = adminNav;
+    navEntries = filterIsyweb(adminNav);
   } else if (role === "COLABORADOR") {
     const items: NavItem[] = [...colaboradorNav];
     const permittedAdminItems = adminNavFlat.filter(
@@ -207,10 +223,10 @@ function useNavItems() {
     if (permittedAdminItems.length > 0) {
       items.push(...permittedAdminItems);
     }
-    navEntries = items;
+    navEntries = filterIsyweb(items);
     flatItems = items;
   } else {
-    navEntries = clienteNav;
+    navEntries = filterIsyweb(clienteNav);
   }
 
   return { session, role, permissions, avatarUrl, hasAdminAccess, navEntries, flatItems };

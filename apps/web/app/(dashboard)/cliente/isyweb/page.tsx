@@ -25,7 +25,32 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
 
 export default function ClienteIsywebPage() {
   const router = useRouter();
-  const { data: projects, isLoading } = trpc.isyweb.list.useQuery();
+  const { data: access, isLoading: accessLoading } =
+    trpc.ecosystem.getMyAccess.useQuery();
+  const hasAccess = !!access?.isyweb;
+  const { data: projects, isLoading } = trpc.isyweb.list.useQuery(undefined, {
+    enabled: hasAccess,
+  });
+
+  if (!accessLoading && !hasAccess) {
+    return (
+      <>
+        <Topbar title="Mis sitios web" />
+        <div className="p-6 max-w-2xl mx-auto">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Globe className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-40" />
+              <h2 className="text-lg font-semibold mb-2">Módulo no disponible</h2>
+              <p className="text-sm text-muted-foreground">
+                Tu agencia aún no ha habilitado el módulo de revisión de sitios web
+                para tu cuenta. Si necesitas acceso, contacta a tu agencia.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

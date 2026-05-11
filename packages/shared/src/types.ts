@@ -69,7 +69,7 @@ export type FieldType =
 
 // ── Ecosystem (multi-product) ──
 
-export type Product = "ISYTASK" | "ISYSOCIAL";
+export type Product = "ISYTASK" | "ISYSOCIAL" | "ISYWEB";
 export type PlanTier = "basic" | "pro" | "enterprise";
 export type SubscriptionStatus = "active" | "past_due" | "canceled" | "trial";
 

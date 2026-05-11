@@ -251,6 +251,9 @@ model ClientProfile {
   planDescription      String?
   monthlyTaskLimit     Int      @default(10)
   revisionLimitPerTask Int      @default(3)
+  // Isyweb (Level 2 gating): admin toggles per-client. Default OFF so existing
+  // clients of agencies without ISYWEB don't see anything.
+  isywebEnabled        Boolean  @default(false)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 

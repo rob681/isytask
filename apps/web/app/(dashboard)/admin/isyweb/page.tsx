@@ -64,9 +64,18 @@ export default function IsywebProjectsPage() {
   const [showForm, setShowForm] = useState(false);
   const utils = trpc.useUtils();
 
-  const { data: projects, isLoading } = trpc.isyweb.list.useQuery();
-  const { data: stats } = trpc.isyweb.stats.useQuery();
-  const { data: clientsData } = trpc.clients.list.useQuery({});
+  // Page-level gate — if agency has no Isyweb subscription, show upsell
+  const { data: access, isLoading: accessLoading } =
+    trpc.ecosystem.getMyAccess.useQuery();
+  const hasAccess = !!access?.isyweb;
+
+  const { data: projects, isLoading } = trpc.isyweb.list.useQuery(undefined, {
+    enabled: hasAccess,
+  });
+  const { data: stats } = trpc.isyweb.stats.useQuery(undefined, {
+    enabled: hasAccess,
+  });
+  const { data: clientsData } = trpc.clients.list.useQuery({}, { enabled: hasAccess });
 
   const createMutation = trpc.isyweb.create.useMutation({
     onSuccess: (project) => {
@@ -94,6 +103,33 @@ export default function IsywebProjectsPage() {
       devUrl: data.devUrl || undefined,
     });
   };
+
+  // Upsell when no access
+  if (!accessLoading && !hasAccess) {
+    return (
+      <>
+        <Topbar title="Isyweb" />
+        <div className="p-6 max-w-3xl mx-auto">
+          <Card className="border-2 border-dashed border-blue-300 bg-blue-50/30">
+            <CardContent className="p-10 text-center">
+              <div className="h-16 w-16 mx-auto rounded-2xl bg-blue-100 flex items-center justify-center mb-5">
+                <Pencil className="h-8 w-8 text-blue-600" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Isyweb no está activo</h2>
+              <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
+                Isyweb es un addon que te permite ofrecer revisión visual de sitios
+                web a tus clientes — postits sobre el sitio, brochure con IA, rondas
+                de revisión y aprobación legal con timestamp.
+              </p>
+              <Button onClick={() => router.push("/admin/billing")}>
+                Activar Isyweb (14 días gratis)
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

@@ -179,6 +179,9 @@ function BillingContent() {
           </CardContent>
         </Card>
 
+        {/* Isyweb addon card */}
+        <IsywebAddonCard activeProducts={activeProducts as string[]} />
+
         {/* Cross-product CTA */}
         {missingProducts.length > 0 && (
           <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
@@ -403,5 +406,77 @@ function BillingContent() {
         )}
       </div>
     </>
+  );
+}
+
+// ── Isyweb addon (separate from Stripe paid products) ──
+
+function IsywebAddonCard({ activeProducts }: { activeProducts: string[] }) {
+  const utils = trpc.useUtils();
+  const isActive = activeProducts.includes("ISYWEB");
+
+  const activate = trpc.ecosystem.activateIsyweb.useMutation({
+    onSuccess: () => {
+      utils.billing.getBillingOverview.invalidate();
+      utils.ecosystem.getMyAccess.invalidate();
+    },
+  });
+  const deactivate = trpc.ecosystem.deactivateIsyweb.useMutation({
+    onSuccess: () => {
+      utils.billing.getBillingOverview.invalidate();
+      utils.ecosystem.getMyAccess.invalidate();
+    },
+  });
+
+  return (
+    <Card className={`border-2 ${isActive ? "border-emerald-200 bg-emerald-50/30" : "border-dashed border-blue-300 bg-blue-50/30"}`}>
+      <CardContent className="p-6">
+        <div className="flex items-start gap-4">
+          <div className={`h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 ${isActive ? "bg-emerald-100" : "bg-blue-100"}`}>
+            <svg className={`h-6 w-6 ${isActive ? "text-emerald-600" : "text-blue-600"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-lg">Isyweb — Addon</h3>
+              {isActive ? (
+                <Badge className="bg-emerald-100 text-emerald-700">Activo</Badge>
+              ) : (
+                <Badge className="bg-blue-100 text-blue-700">No activado</Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Revisión visual de sitios web — el cliente anota con postits, flechas, capturas
+              y comentarios sobre el sitio que estás desarrollando. Incluye brochure con IA,
+              control de rondas y aprobación legal.
+            </p>
+            {!isActive && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Activa una <b>prueba de 14 días</b> sin costo. Después decides si lo conservas.
+              </p>
+            )}
+          </div>
+          <div>
+            {isActive ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (confirm("¿Desactivar Isyweb? Los datos se conservan, podrás reactivarlo después.")) {
+                    deactivate.mutate();
+                  }
+                }}
+                disabled={deactivate.isLoading}
+              >
+                Desactivar
+              </Button>
+            ) : (
+              <Button onClick={() => activate.mutate()} disabled={activate.isLoading}>
+                {activate.isLoading ? "Activando…" : "Activar prueba"}
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

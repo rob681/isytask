@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { router, protectedProcedure, getAgencyId } from "../trpc";
+import { TRPCError } from "@trpc/server";
+import { router, protectedProcedure, adminProcedure, getAgencyId } from "../trpc";
 
 export const ecosystemRouter = router({
   /** Get all subscriptions for the current agency */
@@ -24,7 +25,7 @@ export const ecosystemRouter = router({
 
   /** Validate if the agency has access to a specific product */
   validateProductAccess: protectedProcedure
-    .input(z.enum(["ISYTASK", "ISYSOCIAL"]))
+    .input(z.enum(["ISYTASK", "ISYSOCIAL", "ISYWEB"]))
     .query(async ({ ctx, input: product }) => {
       const agencyId = getAgencyId(ctx);
       const sub = await ctx.db.subscription.findUnique({
@@ -152,5 +153,93 @@ export const ecosystemRouter = router({
       hasBothProducts,
       discountPercent: hasBothProducts && discount ? discount.discountPercent : 0,
     };
+  }),
+
+  // ──────────────────────────────────────────────
+  // ISYWEB addon — agency-level activation (Level 1 gating)
+  // ──────────────────────────────────────────────
+
+  /**
+   * Returns a single object with booleans for which products this user
+   * actually has access to, taking into account agency subscription AND
+   * (for clientes) per-client toggles. Used by sidebar + page-level gates.
+   */
+  getMyAccess: protectedProcedure.query(async ({ ctx }) => {
+    const role = ctx.session.user.role as string;
+    const userId = ctx.session.user.id;
+    const agencyId = ctx.session.user.agencyId as string | undefined;
+
+    // SUPER_ADMIN / platform staff see everything
+    if (["SUPER_ADMIN", "SOPORTE", "FACTURACION", "VENTAS", "ANALISTA"].includes(role)) {
+      return { isytask: true, isysocial: true, isyweb: true, isClienteWithIsyweb: false };
+    }
+
+    if (!agencyId) {
+      return { isytask: false, isysocial: false, isyweb: false, isClienteWithIsyweb: false };
+    }
+
+    const subs = await ctx.db.subscription.findMany({
+      where: { agencyId, status: { in: ["active", "trial"] } },
+      select: { product: true },
+    });
+    const products = new Set(subs.map((s) => s.product));
+
+    // Cliente-level Isyweb check
+    let clienteIsyweb = false;
+    if (role === "CLIENTE" && products.has("ISYWEB")) {
+      const profile = await ctx.db.clientProfile.findUnique({
+        where: { userId },
+        select: { isywebEnabled: true },
+      });
+      clienteIsyweb = !!profile?.isywebEnabled;
+    }
+
+    return {
+      isytask: products.has("ISYTASK"),
+      isysocial: products.has("ISYSOCIAL"),
+      // For non-clientes: agency subscription is enough. For clientes: also need flag.
+      isyweb:
+        products.has("ISYWEB") &&
+        (role !== "CLIENTE" || clienteIsyweb),
+      isClienteWithIsyweb: clienteIsyweb,
+    };
+  }),
+
+  /**
+   * Admin activates Isyweb as a 14-day trial. Idempotent — if already
+   * exists, reactivates the trial.
+   */
+  activateIsyweb: adminProcedure.mutation(async ({ ctx }) => {
+    const agencyId = getAgencyId(ctx);
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    return ctx.db.subscription.upsert({
+      where: { agencyId_product: { agencyId, product: "ISYWEB" } },
+      create: {
+        agencyId,
+        product: "ISYWEB",
+        planTier: "trial",
+        status: "trial",
+        trialEndsAt,
+      },
+      update: { status: "trial", trialEndsAt, canceledAt: null },
+    });
+  }),
+
+  /** Admin cancels Isyweb subscription. Sub stays but status=canceled. */
+  deactivateIsyweb: adminProcedure.mutation(async ({ ctx }) => {
+    const agencyId = getAgencyId(ctx);
+    const existing = await ctx.db.subscription.findUnique({
+      where: { agencyId_product: { agencyId, product: "ISYWEB" } },
+    });
+    if (!existing) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Isyweb no está activo en esta agencia",
+      });
+    }
+    return ctx.db.subscription.update({
+      where: { agencyId_product: { agencyId, product: "ISYWEB" } },
+      data: { status: "canceled", canceledAt: new Date() },
+    });
   }),
 });

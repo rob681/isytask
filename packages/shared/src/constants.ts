@@ -175,6 +175,11 @@ export const PRODUCTS: Record<Product, { name: string; description: string; icon
     description: "Gestión de redes sociales",
     icon: "Share2",
   },
+  ISYWEB: {
+    name: "Isyweb",
+    description: "Revisión visual de sitios web (addon)",
+    icon: "Pencil",
+  },
 };
 
 export const PLAN_TIERS: Record<PlanTier, { name: string; price: number | null }> = {

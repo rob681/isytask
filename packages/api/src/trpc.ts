@@ -139,7 +139,7 @@ export function adminOrPermissionProcedure(...permissions: Permission[]) {
 
 // ── Product-aware middleware (ecosystem) ──
 
-type ProductType = "ISYTASK" | "ISYSOCIAL";
+type ProductType = "ISYTASK" | "ISYSOCIAL" | "ISYWEB";
 
 /** Middleware that validates an agency has an active subscription for a specific product */
 export function withProduct(product: ProductType) {
@@ -176,3 +176,46 @@ export function withProduct(product: ProductType) {
 
 export const isytaskProcedure = t.procedure.use(isAuthenticated).use(rateLimit).use(withProduct("ISYTASK"));
 export const isysocialProcedure = t.procedure.use(isAuthenticated).use(rateLimit).use(withProduct("ISYSOCIAL"));
+
+// ── Isyweb middlewares (Level 1 agency + Level 2 cliente gating) ──
+
+/**
+ * For CLIENTE users, additionally verify their ClientProfile.isywebEnabled = true.
+ * Admins/colaboradores/SUPER_ADMIN bypass this check (they pass once the agency
+ * has the ISYWEB subscription via withProduct).
+ */
+const requireIsywebClientAccess = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.session?.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "No autenticado" });
+  }
+  const role = ctx.session.user.role as string;
+  // Non-clients bypass — agency subscription is sufficient
+  if (role !== "CLIENTE") {
+    return next({ ctx: { session: ctx.session } });
+  }
+  const profile = await (ctx as any).db.clientProfile.findUnique({
+    where: { userId: ctx.session.user.id },
+    select: { isywebEnabled: true },
+  });
+  if (!profile?.isywebEnabled) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Tu agencia no te ha habilitado el acceso a Isyweb",
+    });
+  }
+  return next({ ctx: { session: ctx.session } });
+});
+
+/** Authenticated + agency has ISYWEB subscription + (if cliente) isywebEnabled=true */
+export const isywebProcedure = t.procedure
+  .use(isAuthenticated)
+  .use(rateLimit)
+  .use(withProduct("ISYWEB"))
+  .use(requireIsywebClientAccess);
+
+/** Admin-only Isyweb mutations (e.g. create project, assign colaborador) */
+export const isywebAdminProcedure = t.procedure
+  .use(isAuthenticated)
+  .use(rateLimit)
+  .use(requireRole("ADMIN"))
+  .use(withProduct("ISYWEB"));

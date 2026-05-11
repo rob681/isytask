@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { adminOrPermissionProcedure, router, getAgencyId } from "../trpc";
 
 const clientsProcedure = adminOrPermissionProcedure("manage_clients");
@@ -154,6 +155,28 @@ export const clientsRouter = router({
       return ctx.db.clientProfile.update({
         where: { id },
         data,
+      });
+    }),
+
+  /** Admin toggles per-client access to Isyweb (Level 2 gating). */
+  setIsywebAccess: clientsProcedure
+    .input(z.object({ clientId: z.string(), enabled: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
+      // Validate the cliente belongs to the same agency as the admin
+      const cp = await ctx.db.clientProfile.findUnique({
+        where: { id: input.clientId },
+        include: { user: { select: { agencyId: true } } },
+      });
+      if (!cp || cp.user.agencyId !== agencyId) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Cliente no encontrado",
+        });
+      }
+      return ctx.db.clientProfile.update({
+        where: { id: input.clientId },
+        data: { isywebEnabled: input.enabled },
       });
     }),
 

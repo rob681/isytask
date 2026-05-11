@@ -93,6 +93,15 @@ export default function ClientesPage() {
     },
   });
 
+  const setIsywebAccessMutation = trpc.clients.setIsywebAccess.useMutation({
+    onSuccess: () => utils.clients.list.invalidate(),
+  });
+
+  // Whether this agency has the ISYWEB subscription active (Level 1).
+  // Per-client toggles only make sense when the agency has it.
+  const { data: myAccess } = trpc.ecosystem.getMyAccess.useQuery();
+  const agencyHasIsyweb = !!myAccess?.isyweb;
+
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [planForm, setPlanForm] = useState({ planName: "", planDescription: "", monthlyTaskLimit: 10, revisionLimitPerTask: 3 });
 
@@ -268,6 +277,33 @@ export default function ClientesPage() {
                         Límite: {client.monthlyTaskLimit}/mes
                       </span>
                     </div>
+
+                    {/* Isyweb per-client toggle (Level 2 gating).
+                        Only visible if the agency has Isyweb activated. */}
+                    {agencyHasIsyweb && (
+                      <div className="mt-3 pt-3 border-t flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground inline-flex items-center gap-1">
+                          ✏️ Acceso a Isyweb
+                        </span>
+                        <label className="inline-flex items-center gap-2 cursor-pointer">
+                          <span className="text-xs">
+                            {(client as any).isywebEnabled ? "Activado" : "Desactivado"}
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={!!(client as any).isywebEnabled}
+                            disabled={setIsywebAccessMutation.isLoading}
+                            onChange={(e) =>
+                              setIsywebAccessMutation.mutate({
+                                clientId: client.id,
+                                enabled: e.target.checked,
+                              })
+                            }
+                            className="h-4 w-4"
+                          />
+                        </label>
+                      </div>
+                    )}
 
                     {/* Plan & Limits */}
                     <div className="mt-3 pt-3 border-t">
