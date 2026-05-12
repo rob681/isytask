@@ -14,8 +14,10 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
@@ -40,6 +42,8 @@ import {
   Loader2,
   CheckCircle2,
   X,
+  ListChecks,
+  ExternalLink,
 } from "lucide-react";
 
 type Tool =
@@ -134,6 +138,13 @@ export function ReviewEditor({
   const [submitOpen, setSubmitOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [consentText, setConsentText] = useState("");
+  const [annotationsPanelOpen, setAnnotationsPanelOpen] = useState(false);
+  const [convertingAnnotation, setConvertingAnnotation] = useState<any | null>(null);
+
+  // Role-aware: only admins/colaboradores see the "list & convert" panel
+  const { data: session } = useSession();
+  const userRole = (session?.user as any)?.role;
+  const canConvertToTask = userRole === "ADMIN" || userRole === "SUPER_ADMIN" || userRole === "COLABORADOR";
 
   const [tool, setTool] = useState<Tool>("select");
   const [color, setColor] = useState(COLORS[0]);
@@ -425,6 +436,16 @@ export function ReviewEditor({
               );
             })}
           </div>
+          {canConvertToTask && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAnnotationsPanelOpen((o) => !o)}
+            >
+              <ListChecks className="h-4 w-4 mr-1" />
+              Anotaciones ({annotations.length})
+            </Button>
+          )}
           {revision?.status === "OPEN" && (
             <Button size="sm" onClick={() => setSubmitOpen(true)} disabled={annotations.length === 0}>
               <Send className="h-4 w-4 mr-1" />
@@ -476,6 +497,29 @@ export function ReviewEditor({
             <p className="text-sm text-red-600 mt-2">{submitRevision.error.message}</p>
           )}
         </Modal>
+      )}
+
+      {/* Annotations side panel (admin only) */}
+      {annotationsPanelOpen && canConvertToTask && (
+        <AnnotationsPanel
+          annotations={annotations}
+          projectId={projectId}
+          onClose={() => setAnnotationsPanelOpen(false)}
+          onConvert={(a) => setConvertingAnnotation(a)}
+        />
+      )}
+
+      {/* Convert-to-task modal */}
+      {convertingAnnotation && (
+        <ConvertToTaskModal
+          annotation={convertingAnnotation}
+          projectId={projectId}
+          onClose={() => setConvertingAnnotation(null)}
+          onSuccess={() => {
+            setConvertingAnnotation(null);
+            utils.isyweb.annotationsList.invalidate();
+          }}
+        />
       )}
 
       {/* Approve modal */}
@@ -875,6 +919,197 @@ function DrawingPreview({ drawing, drawStart, color }: any) {
     );
   }
   return null;
+}
+
+function AnnotationsPanel({
+  annotations,
+  projectId,
+  onClose,
+  onConvert,
+}: {
+  annotations: any[];
+  projectId: string;
+  onClose: () => void;
+  onConvert: (a: any) => void;
+}) {
+  return (
+    <div className="fixed top-14 right-0 bottom-0 w-96 bg-white shadow-2xl border-l z-30 flex flex-col">
+      <div className="flex items-center justify-between p-3 border-b">
+        <h3 className="font-semibold text-sm">Anotaciones de esta ronda</h3>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-700">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {annotations.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">Sin anotaciones todavía.</p>
+        ) : (
+          annotations.map((a) => (
+            <div key={a.id} className="border rounded-lg p-3 text-sm hover:bg-gray-50">
+              <div className="flex items-center justify-between mb-1">
+                <Badge variant="outline" className="text-[10px]">
+                  {a.type}
+                </Badge>
+                <Badge
+                  className={
+                    a.status === "RESOLVED"
+                      ? "bg-emerald-100 text-emerald-700 text-[10px]"
+                      : a.status === "IN_PROGRESS"
+                      ? "bg-amber-100 text-amber-700 text-[10px]"
+                      : a.status === "REJECTED"
+                      ? "bg-gray-200 text-gray-600 text-[10px]"
+                      : "bg-blue-100 text-blue-700 text-[10px]"
+                  }
+                >
+                  {a.status}
+                </Badge>
+              </div>
+              <p className="text-xs text-gray-700 line-clamp-3 mb-2">
+                {a.text || a.emoji || `(${a.type.toLowerCase()} sin texto)`}
+              </p>
+              {a.task ? (
+                <a
+                  href={`/admin/tareas/${a.task.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Tarea #{a.task.taskNumber} ({a.task.status})
+                </a>
+              ) : (
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConvert(a)}>
+                  → Convertir a tarea
+                </Button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ConvertToTaskModal({
+  annotation,
+  projectId,
+  onClose,
+  onSuccess,
+}: {
+  annotation: any;
+  projectId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const { data: servicesData } = trpc.services.list.useQuery();
+  const { data: team } = trpc.users.list.useQuery({
+    role: "COLABORADOR",
+    page: 1,
+    pageSize: 50,
+  });
+
+  const [serviceId, setServiceId] = useState("");
+  const [colaboradorId, setColaboradorId] = useState("");
+  const [title, setTitle] = useState(
+    annotation.text
+      ? annotation.text.slice(0, 80)
+      : annotation.emoji
+      ? `Reacción ${annotation.emoji}`
+      : `${annotation.type}`
+  );
+  const [category, setCategory] = useState<"URGENTE" | "NORMAL" | "LARGO_PLAZO">(
+    "NORMAL"
+  );
+
+  const convert = trpc.isyweb.annotationToTask.useMutation({
+    onSuccess: () => onSuccess(),
+  });
+
+  const services = Array.isArray(servicesData) ? servicesData : [];
+
+  return (
+    <Modal title="Convertir anotación en tarea" onClose={onClose}>
+      <div className="space-y-3 text-sm">
+        <div className="bg-gray-50 rounded p-3 text-xs">
+          <span className="font-medium">{annotation.type}</span>
+          {annotation.text && <p className="mt-1 text-gray-700">"{annotation.text}"</p>}
+        </div>
+
+        <div>
+          <label className="block font-medium mb-1">Título de la tarea</label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} />
+        </div>
+
+        <div>
+          <label className="block font-medium mb-1">Servicio *</label>
+          <select
+            value={serviceId}
+            onChange={(e) => setServiceId(e.target.value)}
+            className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">— elige un servicio —</option>
+            {services.map((s: any) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.estimatedHours}h)
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block font-medium mb-1">Asignar a (opcional)</label>
+          <select
+            value={colaboradorId}
+            onChange={(e) => setColaboradorId(e.target.value)}
+            className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">— sin asignar —</option>
+            {(team as any)?.users?.map((u: any) => (
+              <option key={u.id} value={u.colaboradorProfile?.id ?? u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block font-medium mb-1">Categoría</label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as any)}
+            className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="URGENTE">Urgente</option>
+            <option value="NORMAL">Normal</option>
+            <option value="LARGO_PLAZO">Largo plazo</option>
+          </select>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            disabled={!serviceId || convert.isPending}
+            onClick={() =>
+              convert.mutate({
+                annotationId: annotation.id,
+                serviceId,
+                title: title.trim() || undefined,
+                colaboradorId: colaboradorId || undefined,
+                category,
+              })
+            }
+          >
+            {convert.isPending ? "Creando…" : "Crear tarea"}
+          </Button>
+        </div>
+        {convert.error && (
+          <p className="text-sm text-red-600">{convert.error.message}</p>
+        )}
+      </div>
+    </Modal>
+  );
 }
 
 function Modal({

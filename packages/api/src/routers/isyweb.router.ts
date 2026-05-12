@@ -923,7 +923,143 @@ export const isywebRouter = router({
       });
     }),
 
-  // Convert annotation → IsyTask task (Phase 5 stub, not wired yet)
+  // ── Cross-product: Convert annotation → IsyTask task (Phase 5) ──
+
+  /**
+   * Converts an Isyweb annotation into an IsyTask Task, linked via
+   * Task.isywebAnnotationId. Idempotent — if the annotation already has
+   * a task, returns the existing one. Moves annotation status to
+   * IN_PROGRESS to signal work has started.
+   */
+  annotationToTask: isywebAdminProcedure
+    .input(
+      z.object({
+        annotationId: z.string(),
+        serviceId: z.string(),
+        title: z.string().min(2).max(200).optional(),
+        description: z.string().max(4000).optional(),
+        colaboradorId: z.string().optional(),
+        category: z
+          .enum(["URGENTE", "NORMAL", "LARGO_PLAZO"])
+          .default("NORMAL"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const agencyId = getAgencyId(ctx);
+
+      const annotation = await ctx.db.isywebAnnotation.findUnique({
+        where: { id: input.annotationId },
+        include: {
+          project: { select: { id: true, name: true, agencyId: true, clientId: true } },
+          task: { select: { id: true, taskNumber: true, status: true } },
+        },
+      });
+      if (!annotation) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Anotación no encontrada" });
+      }
+      if (annotation.project.agencyId !== agencyId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      // Idempotency
+      if (annotation.task) {
+        return { task: annotation.task, alreadyExisted: true };
+      }
+
+      // Validate service
+      const service = await ctx.db.service.findUnique({
+        where: { id: input.serviceId },
+        select: { id: true, agencyId: true, estimatedHours: true, isActive: true, name: true },
+      });
+      if (!service || service.agencyId !== agencyId || !service.isActive) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Servicio inválido" });
+      }
+
+      // Validate colaborador (if provided)
+      if (input.colaboradorId) {
+        const col = await ctx.db.colaboradorProfile.findUnique({
+          where: { id: input.colaboradorId },
+          include: { user: { select: { agencyId: true } } },
+        });
+        if (!col || col.user.agencyId !== agencyId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Colaborador inválido" });
+        }
+      }
+
+      // Get client default revision limit
+      const client = await ctx.db.clientProfile.findUnique({
+        where: { id: annotation.project.clientId },
+        select: { revisionLimitPerTask: true },
+      });
+
+      // Auto-generate title from annotation if not provided
+      const autoTitle =
+        input.title ??
+        (annotation.text
+          ? annotation.text.slice(0, 80)
+          : annotation.emoji
+          ? `Reacción ${annotation.emoji} en ${annotation.project.name}`
+          : `${annotation.type}: revisar ${annotation.project.name}`);
+
+      // Build description with annotation context
+      const ctx_url = annotation.pageUrl;
+      const autoDescription =
+        input.description ??
+        `📌 Anotación de Isyweb (tipo: ${annotation.type})
+
+` +
+          (annotation.text ? `Nota del cliente: "${annotation.text}"\n\n` : "") +
+          `Ubicación: ${ctx_url} (viewport: ${annotation.viewport})\n` +
+          (annotation.domSelector ? `Elemento: ${annotation.domSelector}\n` : "") +
+          `Proyecto: ${annotation.project.name}`;
+
+      // Get next task number
+      const taskNumberRes = await ctx.db.task.aggregate({
+        where: { agencyId },
+        _max: { taskNumber: true },
+      });
+      const taskNumber = (taskNumberRes._max.taskNumber ?? 0) + 1;
+
+      const task = await ctx.db.task.create({
+        data: {
+          agencyId,
+          taskNumber,
+          clientId: annotation.project.clientId,
+          serviceId: service.id,
+          title: autoTitle,
+          description: autoDescription,
+          category: input.category,
+          estimatedHours: service.estimatedHours,
+          revisionsLimit: client?.revisionLimitPerTask ?? 3,
+          isywebAnnotationId: annotation.id,
+          ...(input.colaboradorId && {
+            colaboradorId: input.colaboradorId,
+            assignments: {
+              create: { colaboradorId: input.colaboradorId, role: "PRIMARY" },
+            },
+          }),
+          statusLog: {
+            create: {
+              fromStatus: null,
+              toStatus: "RECIBIDA",
+              changedById: ctx.session.user.id,
+              note: "Tarea creada desde anotación de Isyweb",
+            },
+          },
+        },
+      });
+
+      // Move annotation to IN_PROGRESS to reflect that work has started
+      await ctx.db.isywebAnnotation.update({
+        where: { id: annotation.id },
+        data: { status: "IN_PROGRESS" },
+      });
+
+      return {
+        task: { id: task.id, taskNumber: task.taskNumber, status: task.status },
+        alreadyExisted: false,
+      };
+    }),
 
   // ── Stats / dashboard widget ──
 

@@ -727,6 +727,32 @@ export const tasksRouter = router({
         newStatus: input.newStatus,
       }).catch(() => {}); // fire and forget
 
+      // Cross-app: sync Isyweb annotation status when task is closed
+      if (updated.isywebAnnotationId) {
+        const annotationStatus =
+          input.newStatus === "FINALIZADA"
+            ? "RESOLVED"
+            : input.newStatus === "CANCELADA"
+            ? "REJECTED"
+            : input.newStatus === "EN_PROGRESO"
+            ? "IN_PROGRESS"
+            : null;
+        if (annotationStatus) {
+          ctx.db.isywebAnnotation
+            .update({
+              where: { id: updated.isywebAnnotationId },
+              data: {
+                status: annotationStatus,
+                ...(annotationStatus === "RESOLVED" && {
+                  resolvedAt: new Date(),
+                  resolvedBy: ctx.session.user.id,
+                }),
+              },
+            })
+            .catch(() => {}); // fire and forget
+        }
+      }
+
       // Cross-app sync: propagate status to Isysocial (fire-and-forget)
       if (updated.isysocialPostId) {
         const eventMap: Record<string, string | undefined> = {
