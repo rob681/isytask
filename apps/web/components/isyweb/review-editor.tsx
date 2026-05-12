@@ -140,6 +140,9 @@ export function ReviewEditor({
   const [consentText, setConsentText] = useState("");
   const [annotationsPanelOpen, setAnnotationsPanelOpen] = useState(false);
   const [convertingAnnotation, setConvertingAnnotation] = useState<any | null>(null);
+  const [snapshotting, setSnapshotting] = useState(false);
+  const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
+  const saveSnapshot = trpc.isyweb.saveSnapshot.useMutation();
 
   // Role-aware: only admins/colaboradores see the "list & convert" panel
   const { data: session } = useSession();
@@ -382,6 +385,64 @@ export function ReviewEditor({
     ev.preventDefault();
   };
 
+  // ── Capture snapshot (current viewport) via widget postMessage ──
+  const captureSnapshot = async () => {
+    if (!iframeRef.current?.contentWindow || !revision) {
+      setSnapshotMsg("Espera a que cargue el sitio");
+      return;
+    }
+    setSnapshotting(true);
+    setSnapshotMsg(null);
+    const reqId = `snap-${Date.now()}`;
+
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("Timeout esperando captura del widget")), 30_000);
+        function onMsg(ev: MessageEvent) {
+          const m = ev.data;
+          if (!m || m.source !== "isyweb-widget") return;
+          if (m.type === "SCREENSHOT_DATA" && m.data?.reqId === reqId) {
+            clearTimeout(timeout);
+            window.removeEventListener("message", onMsg);
+            resolve(m.data.dataUrl);
+          } else if (m.type === "SCREENSHOT_ERROR" && m.data?.reqId === reqId) {
+            clearTimeout(timeout);
+            window.removeEventListener("message", onMsg);
+            reject(new Error(m.data.error));
+          }
+        }
+        window.addEventListener("message", onMsg);
+        iframeRef.current!.contentWindow!.postMessage(
+          { source: "isyweb-parent", type: "CAPTURE_SCREENSHOT", data: { reqId } },
+          "*"
+        );
+      });
+
+      // Convert dataUrl → Blob → FormData → upload
+      const blob = await (await fetch(dataUrl)).blob();
+      const fd = new FormData();
+      fd.append("file", new File([blob], `${viewport.toLowerCase()}.jpg`, { type: "image/jpeg" }));
+      fd.append("revisionId", revision.id);
+      fd.append("viewport", viewport);
+
+      const res = await fetch("/api/uploads/isyweb-snapshot", { method: "POST", body: fd });
+      if (!res.ok) throw new Error(`Upload falló (${res.status})`);
+      const { url } = await res.json();
+
+      // Save in DB
+      await saveSnapshot.mutateAsync({
+        revisionId: revision.id,
+        [viewport === "DESKTOP" ? "desktopUrl" : viewport === "TABLET" ? "tabletUrl" : "mobileUrl"]: url,
+      } as any);
+      setSnapshotMsg(`✓ Snapshot ${viewport} guardado`);
+      setTimeout(() => setSnapshotMsg(null), 3000);
+    } catch (e: any) {
+      setSnapshotMsg(`Error: ${e.message ?? e}`);
+    } finally {
+      setSnapshotting(false);
+    }
+  };
+
   // Last annotation undo
   const handleUndo = () => {
     const last = annotations[annotations.length - 1];
@@ -437,14 +498,33 @@ export function ReviewEditor({
             })}
           </div>
           {canConvertToTask && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setAnnotationsPanelOpen((o) => !o)}
-            >
-              <ListChecks className="h-4 w-4 mr-1" />
-              Anotaciones ({annotations.length})
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={captureSnapshot}
+                disabled={snapshotting || !iframeReady}
+                title="Capturar snapshot del viewport actual"
+              >
+                {snapshotting ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4 mr-1" />
+                )}
+                Snapshot
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAnnotationsPanelOpen((o) => !o)}
+              >
+                <ListChecks className="h-4 w-4 mr-1" />
+                Anotaciones ({annotations.length})
+              </Button>
+            </>
+          )}
+          {snapshotMsg && (
+            <span className="text-xs text-muted-foreground">{snapshotMsg}</span>
           )}
           {revision?.status === "OPEN" && (
             <Button size="sm" onClick={() => setSubmitOpen(true)} disabled={annotations.length === 0}>

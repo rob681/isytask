@@ -161,6 +161,43 @@ const WIDGET_JS = `
     });
   }
 
+  // ── Screenshot capture using html2canvas (lazy-loaded) ──
+  var h2cPromise = null;
+  function loadH2C() {
+    if (h2cPromise) return h2cPromise;
+    h2cPromise = new Promise(function (resolve, reject) {
+      if (typeof window.html2canvas === 'function') return resolve(window.html2canvas);
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+      s.onload = function () { resolve(window.html2canvas); };
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    return h2cPromise;
+  }
+
+  async function captureScreenshot(reqId) {
+    try {
+      var h2c = await loadH2C();
+      // Hide our own hover overlay during capture
+      var ov = hoverOverlay; if (ov) ov.style.display = 'none';
+      var canvas = await h2c(document.body, {
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        logging: false,
+        scale: 1,
+        windowWidth: document.documentElement.scrollWidth,
+        windowHeight: document.documentElement.scrollHeight,
+      });
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      sendToParent('SCREENSHOT_DATA', { reqId: reqId, dataUrl: dataUrl, w: canvas.width, h: canvas.height });
+    } catch (e) {
+      log('screenshot failed', e);
+      sendToParent('SCREENSHOT_ERROR', { reqId: reqId, error: String(e && e.message || e) });
+    }
+  }
+
   // ── Message handler from parent ──
   window.addEventListener('message', function (ev) {
     var msg = ev.data;
@@ -170,6 +207,7 @@ const WIDGET_JS = `
     else if (msg.type === 'CANCEL_PICK') setPickMode(false);
     else if (msg.type === 'PING') sendToParent('PONG', { url: location.href, title: document.title });
     else if (msg.type === 'GET_VIEWPORT') onResize();
+    else if (msg.type === 'CAPTURE_SCREENSHOT') captureScreenshot(msg.data && msg.data.reqId);
   });
 
   document.addEventListener('mousemove', onMouseMove, true);

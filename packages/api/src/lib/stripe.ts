@@ -31,4 +31,9 @@ export const STRIPE_PRICES = {
     pro: process.env.STRIPE_PRICE_ISYSOCIAL_PRO || "",
     enterprise: process.env.STRIPE_PRICE_ISYSOCIAL_ENTERPRISE || "",
   },
+  ISYWEB: {
+    basic: process.env.STRIPE_PRICE_ISYWEB_BASIC || "",
+    pro: process.env.STRIPE_PRICE_ISYWEB_PRO || "",
+    enterprise: process.env.STRIPE_PRICE_ISYWEB_ENTERPRISE || "",
+  },
 } as const;

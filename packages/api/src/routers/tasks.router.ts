@@ -1030,6 +1030,18 @@ export const tasksRouter = router({
             include: { field: { select: { label: true, fieldType: true, options: true, sortOrder: true } } },
             orderBy: { field: { sortOrder: "asc" } },
           },
+          // Isyweb cross-link: surface "originated from annotation" context
+          isywebAnnotation: {
+            select: {
+              id: true,
+              type: true,
+              text: true,
+              emoji: true,
+              pageUrl: true,
+              viewport: true,
+              project: { select: { id: true, name: true } },
+            },
+          },
         },
       });
 

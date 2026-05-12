@@ -38,7 +38,11 @@ export type NotificationType =
   | "ISYSOCIAL_POST_RECHAZADO"
   | "ISYSOCIAL_POST_APROBADO"
   | "ISYSOCIAL_OAUTH_EXPIRADO"
-  | "ISYSOCIAL_CONTENIDO_PUBLICADO";
+  | "ISYSOCIAL_CONTENIDO_PUBLICADO"
+  | "ISYWEB_REVISION_SUBMITTED"
+  | "ISYWEB_REVISION_RESOLVED"
+  | "ISYWEB_PROJECT_APPROVED"
+  | "ISYWEB_ANNOTATION_TO_TASK";
 
 // Cross-app event types for Isytask ↔ Isysocial integration
 export type CrossAppEventType =

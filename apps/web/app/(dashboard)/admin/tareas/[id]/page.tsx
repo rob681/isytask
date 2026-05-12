@@ -234,7 +234,7 @@ export default function AdminTaskDetailPage() {
             </Button>
           </Link>
           <div className="flex-1">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-xl font-bold">{task.title}</h2>
               <Badge
                 className={TASK_STATUS_COLORS[task.status]}
@@ -243,6 +243,15 @@ export default function AdminTaskDetailPage() {
                 {TASK_STATUS_LABELS[task.status]}
               </Badge>
               <TaskRiskBadge taskId={task.id} />
+              {(task as any).isywebAnnotation && (
+                <Link
+                  href={`/admin/isyweb/${(task as any).isywebAnnotation.project.id}/revisar`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 transition"
+                  title={`Originada desde anotación de Isyweb (${(task as any).isywebAnnotation.type})`}
+                >
+                  ✏️ Originada de Isyweb
+                </Link>
+              )}
             </div>
             <div className="flex items-center gap-3 mt-1">
               <p className="text-sm text-muted-foreground">
@@ -257,6 +266,19 @@ export default function AdminTaskDetailPage() {
                 />
               )}
             </div>
+            {(task as any).isywebAnnotation && (
+              <div className="mt-2 inline-flex items-start gap-2 px-3 py-2 rounded-md bg-purple-50 border border-purple-200 text-xs">
+                <span className="font-medium text-purple-900">Anotación origen:</span>
+                <span className="text-purple-800">
+                  {(task as any).isywebAnnotation.text ||
+                    (task as any).isywebAnnotation.emoji ||
+                    (task as any).isywebAnnotation.type}
+                </span>
+                <span className="text-purple-600">
+                  &middot; en {(task as any).isywebAnnotation.project.name}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

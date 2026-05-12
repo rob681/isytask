@@ -12,7 +12,7 @@ export const billingRouter = router({
   createCheckoutSession: adminProcedure
     .input(
       z.object({
-        product: z.enum(["ISYTASK", "ISYSOCIAL"]),
+        product: z.enum(["ISYTASK", "ISYSOCIAL", "ISYWEB"]),
         planTier: z.enum(["basic", "pro", "enterprise"]),
       })
     )

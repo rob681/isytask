@@ -13,6 +13,7 @@ import {
   MAX_AI_QUESTIONS,
   buildBrochureSystemPrompt,
 } from "../lib/isyweb-brochure";
+import { sendNotification } from "../lib/notifications";
 
 const SiteTypeEnum = z.enum([
   "LANDING",
@@ -755,6 +756,35 @@ export const isywebRouter = router({
           data: { status: "IN_REVIEW" },
         });
       }
+      // Notify all admins of the agency that a revision was submitted
+      void (async () => {
+        try {
+          const [admins, cliente] = await Promise.all([
+            ctx.db.user.findMany({
+              where: { agencyId: project.agencyId, role: "ADMIN", isActive: true },
+              select: { id: true },
+            }),
+            ctx.db.clientProfile.findUnique({
+              where: { id: project.clientId },
+              include: { user: { select: { name: true } } },
+            }),
+          ]);
+          for (const admin of admins) {
+            await sendNotification({
+              db: ctx.db as any,
+              userId: admin.id,
+              agencyId: project.agencyId,
+              type: "ISYWEB_REVISION_SUBMITTED",
+              data: {
+                projectName: project.name,
+                clientName: cliente?.user.name ?? "Cliente",
+                round: String(rev.roundNumber),
+                annotationCount: String(annCount),
+              },
+            });
+          }
+        } catch (e) { console.error("[isyweb] notify revision_submitted failed", e); }
+      })();
       return updated;
     }),
 
@@ -791,6 +821,27 @@ export const isywebRouter = router({
         where: { id: project.id },
         data: { status: "IN_REVIEW" },
       });
+      // Notify the cliente that the round is ready for final review
+      void (async () => {
+        try {
+          const cliente = await ctx.db.clientProfile.findUnique({
+            where: { id: project.clientId },
+            select: { userId: true },
+          });
+          if (cliente?.userId) {
+            await sendNotification({
+              db: ctx.db as any,
+              userId: cliente.userId,
+              agencyId: project.agencyId,
+              type: "ISYWEB_REVISION_RESOLVED",
+              data: {
+                projectName: project.name,
+                round: String(rev.roundNumber),
+              },
+            });
+          }
+        } catch (e) { console.error("[isyweb] notify revision_resolved failed", e); }
+      })();
       return updated;
     }),
 
@@ -858,6 +909,35 @@ export const isywebRouter = router({
         where: { id: project.id },
         data: { status: "APPROVED" },
       });
+
+      // Notify admins that the client approved
+      void (async () => {
+        try {
+          const [admins, cliente] = await Promise.all([
+            ctx.db.user.findMany({
+              where: { agencyId: project.agencyId, role: "ADMIN", isActive: true },
+              select: { id: true },
+            }),
+            ctx.db.clientProfile.findUnique({
+              where: { id: project.clientId },
+              include: { user: { select: { name: true } } },
+            }),
+          ]);
+          for (const admin of admins) {
+            await sendNotification({
+              db: ctx.db as any,
+              userId: admin.id,
+              agencyId: project.agencyId,
+              type: "ISYWEB_PROJECT_APPROVED",
+              data: {
+                projectName: project.name,
+                clientName: cliente?.user.name ?? "Cliente",
+                round: String(rev.roundNumber),
+              },
+            });
+          }
+        } catch (e) { console.error("[isyweb] notify project_approved failed", e); }
+      })();
 
       return updated;
     }),
@@ -1054,6 +1134,24 @@ export const isywebRouter = router({
         where: { id: annotation.id },
         data: { status: "IN_PROGRESS" },
       });
+
+      // Notify the annotation's author (typically the cliente)
+      void (async () => {
+        try {
+          if (annotation.authorId === ctx.session.user.id) return; // don't notify self
+          await sendNotification({
+            db: ctx.db as any,
+            userId: annotation.authorId,
+            agencyId,
+            type: "ISYWEB_ANNOTATION_TO_TASK",
+            taskId: task.id,
+            data: {
+              projectName: annotation.project.name,
+              taskNumber: String(task.taskNumber),
+            },
+          });
+        } catch (e) { console.error("[isyweb] notify annotation_to_task failed", e); }
+      })();
 
       return {
         task: { id: task.id, taskNumber: task.taskNumber, status: task.status },

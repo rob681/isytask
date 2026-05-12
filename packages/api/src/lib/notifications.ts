@@ -10,7 +10,7 @@ interface NotifyParams {
   userId: string;
   agencyId?: string;
   type: NotificationType;
-  taskId: string;
+  taskId?: string; // optional — Isyweb cross-app notifications may not have a task
   data: Record<string, string>;
 }
 

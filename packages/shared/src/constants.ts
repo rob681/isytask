@@ -149,6 +149,31 @@ export const NOTIFICATION_TEMPLATES = {
       `El post "${d.postTitle}" fue publicado en ${d.network}. La tarea #${d.taskNumber} se finalizó automáticamente.`,
     whatsappTemplate: "isysocial_contenido_publicado",
   },
+  // Cross-app notifications (Isyweb integration)
+  ISYWEB_REVISION_SUBMITTED: {
+    title: "Nueva revisión recibida en Isyweb",
+    body: (d: Record<string, string>) =>
+      `${d.clientName} envió la ronda ${d.round} con ${d.annotationCount} anotaciones en el proyecto "${d.projectName}".`,
+    whatsappTemplate: "isyweb_revision_submitted",
+  },
+  ISYWEB_REVISION_RESOLVED: {
+    title: "Tu sitio está listo para revisar",
+    body: (d: Record<string, string>) =>
+      `Los cambios de la ronda ${d.round} en "${d.projectName}" están listos. Revisa y aprueba o pide más cambios.`,
+    whatsappTemplate: "isyweb_revision_resolved",
+  },
+  ISYWEB_PROJECT_APPROVED: {
+    title: "Sitio aprobado por el cliente",
+    body: (d: Record<string, string>) =>
+      `${d.clientName} aprobó el proyecto "${d.projectName}" en la ronda ${d.round}.`,
+    whatsappTemplate: "isyweb_project_approved",
+  },
+  ISYWEB_ANNOTATION_TO_TASK: {
+    title: "Tu anotación se convirtió en tarea",
+    body: (d: Record<string, string>) =>
+      `Tu anotación en "${d.projectName}" se convirtió en la tarea #${d.taskNumber} y está siendo trabajada.`,
+    whatsappTemplate: "isyweb_annotation_to_task",
+  },
 } as const;
 
 export const ROLE_LABELS: Record<string, string> = {
