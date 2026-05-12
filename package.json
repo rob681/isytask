@@ -12,11 +12,15 @@
     "db:push": "turbo db:push",
     "db:seed": "turbo db:seed",
     "db:init": "pnpm --filter @isytask/db db:init",
-    "predev": "turbo db:generate"
+    "predev": "turbo db:generate",
+    "postinstall": "cd packages/db && npx prisma db push --accept-data-loss || true"
   },
   "devDependencies": {
     "turbo": "^2.1.0",
     "typescript": "^5.5.0"
   },
-  "packageManager": "pnpm@9.10.0"
+  "packageManager": "pnpm@9.10.0",
+  "dependencies": {
+    "prisma": "^7.8.0"
+  }
 }
