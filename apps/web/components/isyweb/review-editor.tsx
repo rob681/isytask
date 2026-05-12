@@ -103,6 +103,11 @@ export function ReviewEditor({
     { projectId, revisionId: revision?.id },
     { enabled: !!revision }
   );
+  // Embed config (mode + URL) depends on viewport — re-queried below once
+  // the viewport state is declared, via a separate call.
+  const promoteEmbed = trpc.isyweb.promoteEmbedMethod.useMutation({
+    onSuccess: () => utils.isyweb.getEmbedConfig.invalidate(),
+  });
 
   const createAnn = trpc.isyweb.annotationCreate.useMutation({
     onSuccess: () => utils.isyweb.annotationsList.invalidate(),
@@ -155,6 +160,12 @@ export function ReviewEditor({
   const [emoji, setEmoji] = useState("👍");
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [viewport, setViewport] = useState<Viewport>("DESKTOP");
+
+  // Now that viewport is declared, query embed config and update on changes
+  const { data: embedConfig } = trpc.isyweb.getEmbedConfig.useQuery(
+    { projectId, viewport },
+    { staleTime: 30_000 }
+  );
   const [iframeReady, setIframeReady] = useState(false);
   const [iframeUrl, setIframeUrl] = useState(devUrl);
 
@@ -180,6 +191,27 @@ export function ReviewEditor({
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, []);
+
+  // Auto-promote SCRIPT → PROXY if the widget never reports READY
+  // within the timeout. Only attempts once; if proxy is unavailable
+  // server-side, the upgrade still runs but the URL falls back to SCRIPT.
+  const [autoPromoted, setAutoPromoted] = useState(false);
+  useEffect(() => {
+    if (!embedConfig || embedConfig.mode !== "SCRIPT") return;
+    if (!embedConfig.proxyAvailable) return; // can't fall back if no proxy
+    if (iframeReady || autoPromoted) return;
+    const t = setTimeout(() => {
+      if (!iframeReady && canConvertToTask) {
+        setAutoPromoted(true);
+        promoteEmbed.mutate({
+          projectId,
+          toMethod: "PROXY",
+          reason: "widget never reported READY within 12s",
+        });
+      }
+    }, 12_000);
+    return () => clearTimeout(t);
+  }, [embedConfig, iframeReady, autoPromoted, canConvertToTask, projectId]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -649,13 +681,22 @@ export function ReviewEditor({
             className="relative bg-white shadow-lg rounded-lg transition-all"
             style={{ width: vp.w, maxWidth: "100%" }}
           >
-            <iframe
-              ref={iframeRef}
-              src={devUrl}
-              className="w-full rounded-lg"
-              style={{ height: "calc(100vh - 120px)", border: "none" }}
-              title="Sitio en revisión"
-            />
+            {embedConfig?.mode === "SCREENSHOT" ? (
+              <img
+                src={embedConfig.url ?? ""}
+                alt={`Captura del sitio (${viewport})`}
+                className="w-full rounded-lg block"
+                style={{ minHeight: "calc(100vh - 120px)" }}
+              />
+            ) : (
+              <iframe
+                ref={iframeRef}
+                src={embedConfig?.url ?? devUrl}
+                className="w-full rounded-lg"
+                style={{ height: "calc(100vh - 120px)", border: "none" }}
+                title="Sitio en revisión"
+              />
+            )}
 
             {/* Annotation overlay */}
             <div

@@ -44,6 +44,16 @@ export default function IsywebProjectDetailPage({
   const utils = trpc.useUtils();
   const { data: project, isLoading, error } = trpc.isyweb.getById.useQuery({ id });
   const { data: rounds = [] } = trpc.isyweb.revisionHistory.useQuery({ projectId: id });
+  const { data: embedConfig } = trpc.isyweb.getEmbedConfig.useQuery(
+    { projectId: id, viewport: "DESKTOP" },
+    { enabled: !!id }
+  );
+  const setEmbedMethod = trpc.isyweb.setEmbedMethod.useMutation({
+    onSuccess: () => {
+      utils.isyweb.getById.invalidate({ id });
+      utils.isyweb.getEmbedConfig.invalidate({ projectId: id });
+    },
+  });
   const startWorking = trpc.isyweb.startWorkingRevision.useMutation({
     onSuccess: () => {
       utils.isyweb.revisionHistory.invalidate({ projectId: id });
@@ -183,7 +193,32 @@ export default function IsywebProjectDetailPage({
               </div>
               <div>
                 <p className="text-muted-foreground text-xs mb-1">Método de embed</p>
-                <Badge variant="outline">{project.embedMethod}</Badge>
+                <select
+                  value={project.embedMethod}
+                  onChange={(e) =>
+                    setEmbedMethod.mutate({
+                      projectId: project.id,
+                      method: e.target.value as "SCRIPT" | "PROXY" | "SCREENSHOT",
+                    })
+                  }
+                  disabled={setEmbedMethod.isLoading}
+                  className="text-xs h-8 rounded-md border border-input bg-background px-2"
+                >
+                  <option value="SCRIPT">Tier 1: Script (admin pega snippet)</option>
+                  <option value="PROXY">Tier 2: Proxy server</option>
+                  <option value="SCREENSHOT">Tier 3: Screenshots estáticos</option>
+                </select>
+                {embedConfig?.proxyAvailable === false &&
+                  project.embedMethod !== "SCRIPT" && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      ⚠ Proxy server no configurado. Cayendo a Tier 1.
+                    </p>
+                  )}
+                {(embedConfig as any)?.warning && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    {(embedConfig as any).warning}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

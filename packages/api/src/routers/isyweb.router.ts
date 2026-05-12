@@ -1003,6 +1003,121 @@ export const isywebRouter = router({
       });
     }),
 
+  // ── EMBED — resolve which URL the iframe should load (Phase 6) ──
+
+  /**
+   * Returns the actual URL the ReviewEditor's iframe should load,
+   * based on the project's embedMethod (SCRIPT / PROXY / SCREENSHOT).
+   *
+   * Also returns a flag indicating whether the proxy is configured
+   * server-side, so the UI can degrade gracefully.
+   */
+  getEmbedConfig: isywebProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        viewport: z.enum(["DESKTOP", "TABLET", "MOBILE"]).default("DESKTOP"),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const project = await assertProjectAccess(ctx, input.projectId);
+      if (!project.devUrl) {
+        return { mode: "NO_URL" as const, url: null, proxyAvailable: false };
+      }
+
+      // Proxy is "available" if the env vars are set on the Next.js side
+      const proxyAvailable =
+        !!process.env.PROXY_ISYWEB_URL && !!process.env.PROXY_SHARED_SECRET;
+
+      if (project.embedMethod === "SCRIPT") {
+        return {
+          mode: "SCRIPT" as const,
+          url: project.devUrl,
+          proxyAvailable,
+          devUrl: project.devUrl,
+        };
+      }
+      if (project.embedMethod === "PROXY") {
+        if (!proxyAvailable) {
+          // Fall back to SCRIPT if proxy isn't configured
+          return {
+            mode: "SCRIPT" as const,
+            url: project.devUrl,
+            proxyAvailable: false,
+            devUrl: project.devUrl,
+            warning: "Proxy mode requested but proxy server not configured",
+          };
+        }
+        const qs = new URLSearchParams({
+          projectId: project.id,
+          viewport: input.viewport,
+        });
+        return {
+          mode: "PROXY" as const,
+          url: `/api/isyweb-proxy?${qs.toString()}`,
+          proxyAvailable: true,
+          devUrl: project.devUrl,
+        };
+      }
+      // SCREENSHOT
+      if (!proxyAvailable) {
+        return {
+          mode: "SCRIPT" as const,
+          url: project.devUrl,
+          proxyAvailable: false,
+          devUrl: project.devUrl,
+          warning: "Screenshot mode requested but proxy server not configured",
+        };
+      }
+      const qs = new URLSearchParams({
+        projectId: project.id,
+        viewport: input.viewport,
+      });
+      return {
+        mode: "SCREENSHOT" as const,
+        url: `/api/isyweb-screenshot?${qs.toString()}`,
+        proxyAvailable: true,
+        devUrl: project.devUrl,
+      };
+    }),
+
+  /**
+   * Auto-promotion: when ReviewEditor detects that the widget never
+   * announced READY after a timeout (SCRIPT failed), it calls this to
+   * upgrade the project to PROXY mode for next time.
+   */
+  promoteEmbedMethod: isywebAdminProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        toMethod: z.enum(["PROXY", "SCREENSHOT"]),
+        reason: z.string().max(500).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await assertProjectAccess(ctx, input.projectId);
+      return ctx.db.isywebProject.update({
+        where: { id: project.id },
+        data: { embedMethod: input.toMethod },
+      });
+    }),
+
+  /** Admin sets embedMethod manually (project detail page UI). */
+  setEmbedMethod: isywebAdminProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        method: z.enum(["SCRIPT", "PROXY", "SCREENSHOT"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await assertProjectAccess(ctx, input.projectId);
+      return ctx.db.isywebProject.update({
+        where: { id: project.id },
+        data: { embedMethod: input.method },
+      });
+    }),
+
   // ── Cross-product: Convert annotation → IsyTask task (Phase 5) ──
 
   /**
